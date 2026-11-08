@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#241D4F" />
+  <title>Admin · Werewolf</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="assets/png/role-werewolf.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="theme-night" data-page="admin">
+  <div class="sky" aria-hidden="true"><div class="stars"></div><div class="stars s2"></div></div>
+  <div class="sky-day" aria-hidden="true"></div>
+  <div class="orb moon" aria-hidden="true"></div>
+  <div class="orb sun" aria-hidden="true"></div>
+  <svg class="land" viewBox="0 0 400 110" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <path class="h1" d="M0 58 C60 30 120 40 182 58 C244 76 300 40 400 50 V110 H0Z"/>
+    <g transform="translate(58 62)" style="--rf:#FFB86B"><rect class="hw" x="-13" y="-15" width="26" height="20" rx="3"/><path class="roof" d="M-17 -13 L0 -29 L17 -13Z"/><rect class="win" x="-4" y="-9" width="8" height="8" rx="1.5"/></g>
+    <g transform="translate(112 66)" style="--rf:#FF8FB1"><rect class="hw" x="-11" y="-13" width="22" height="17" rx="3"/><path class="roof" d="M-15 -11 L0 -25 L15 -11Z"/><rect class="win" x="-3.5" y="-8" width="7" height="7" rx="1.5"/></g>
+    <g transform="translate(300 54)" style="--rf:#9CD3FF"><rect class="hw" x="-13" y="-15" width="26" height="20" rx="3"/><path class="roof" d="M-17 -13 L0 -29 L17 -13Z"/><rect class="win" x="-4" y="-9" width="8" height="8" rx="1.5"/></g>
+    <g transform="translate(350 52)" style="--rf:#FFD45E"><rect class="hw" x="-10" y="-12" width="20" height="16" rx="3"/><path class="roof" d="M-14 -10 L0 -23 L14 -10Z"/><rect class="win" x="-3" y="-7" width="6" height="6" rx="1.5"/></g>
+    <g transform="translate(206 70)"><path class="tr" d="M0 -24 L11 0 H-11Z"/><path class="tr2" d="M0 -34 L8 -15 H-8Z"/></g>
+    <g transform="translate(244 74)"><path class="tr" d="M0 -18 L9 0 H-9Z"/><path class="tr2" d="M0 -26 L7 -11 H-7Z"/></g>
+    <g transform="translate(18 66)"><path class="tr" d="M0 -20 L10 0 H-10Z"/><path class="tr2" d="M0 -29 L7 -12 H-7Z"/></g>
+    <path class="h2" d="M0 84 C80 66 150 74 222 86 C292 98 342 76 400 80 V110 H0Z"/>
+  </svg>
+  <svg class="land land-day" viewBox="0 0 400 110" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <path class="h1" d="M0 58 C60 30 120 40 182 58 C244 76 300 40 400 50 V110 H0Z"/>
+    <g transform="translate(58 62)" style="--rf:#FFB86B"><rect class="hw" x="-13" y="-15" width="26" height="20" rx="3"/><path class="roof" d="M-17 -13 L0 -29 L17 -13Z"/><rect class="win" x="-4" y="-9" width="8" height="8" rx="1.5"/></g>
+    <g transform="translate(112 66)" style="--rf:#FF8FB1"><rect class="hw" x="-11" y="-13" width="22" height="17" rx="3"/><path class="roof" d="M-15 -11 L0 -25 L15 -11Z"/><rect class="win" x="-3.5" y="-8" width="7" height="7" rx="1.5"/></g>
+    <g transform="translate(300 54)" style="--rf:#9CD3FF"><rect class="hw" x="-13" y="-15" width="26" height="20" rx="3"/><path class="roof" d="M-17 -13 L0 -29 L17 -13Z"/><rect class="win" x="-4" y="-9" width="8" height="8" rx="1.5"/></g>
+    <g transform="translate(350 52)" style="--rf:#FFD45E"><rect class="hw" x="-10" y="-12" width="20" height="16" rx="3"/><path class="roof" d="M-14 -10 L0 -23 L14 -10Z"/><rect class="win" x="-3" y="-7" width="6" height="6" rx="1.5"/></g>
+    <g transform="translate(206 70)"><path class="tr" d="M0 -24 L11 0 H-11Z"/><path class="tr2" d="M0 -34 L8 -15 H-8Z"/></g>
+    <g transform="translate(244 74)"><path class="tr" d="M0 -18 L9 0 H-9Z"/><path class="tr2" d="M0 -26 L7 -11 H-7Z"/></g>
+    <g transform="translate(18 66)"><path class="tr" d="M0 -20 L10 0 H-10Z"/><path class="tr2" d="M0 -29 L7 -12 H-7Z"/></g>
+    <path class="h2" d="M0 84 C80 66 150 74 222 86 C292 98 342 76 400 80 V110 H0Z"/>
+  </svg>
+  <main id="app" aria-live="polite"></main>
+  <div id="toast" role="status"></div>
+  <noscript>Please turn on JavaScript to play.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

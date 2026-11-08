@@ -1,0 +1,1345 @@
+import { firebaseConfig } from './config.js';
+import { createLocalBackend } from './backend-local.js';
+import { AVATARS, avatarSVG, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON } from './art.js';
+import * as G from './game.js';
+import * as SND from './sound.js';
+
+// ═════════════════════════ state ═════════════════════════
+const $app = document.getElementById('app');
+const PAGE = document.body.dataset.page === 'admin' ? 'admin' : 'play';
+const DEFAULT_BRAND = { name: 'Werewolf', village: 'Moonhollow', tagline: 'A cozy game of secrets & fibs for your Teams calls.', icon: { type: 'art', id: 'werewolf' } };
+const S = {
+  be: null, uid: null, view: 'loading', brand: { ...DEFAULT_BRAND }, brandLoaded: false,
+  code: null, isMod: false,
+  room: null, players: [], votes: [], actions: [], secret: null, myAction: null, mod: null,
+  ui: { code: '', name: '', avatar: null, flipped: false, sheet: null, confettiFor: null, draft: null, pin: '', pin2: '', newPin: '' },
+  lastRoom: null,
+  subs: [], actionSub: null, actionKey: null, joinSub: null, joinPlayers: [],
+  busy: false, resolving: null, seerPending: null,
+};
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ROLE_SVG = Object.fromEntries(Object.entries(ROLE_ART).map(([k, f]) => [k, f()]));
+const GHOST = ghostSVG();
+const AV_CACHE = {};
+const PHASES = ['lobby', 'roles', 'night', 'morning', 'day', 'vote', 'verdict'];
+const PHASE_LABEL = { lobby: 'Lobby', roles: 'Roles', night: 'Night', morning: 'Morning', day: 'Debate', vote: 'Vote', verdict: 'Verdict', ended: 'Game over' };
+
+const store = {
+  get area() { return S.be?.mode === 'demo' ? sessionStorage : localStorage; },
+  key: `moonhollow-session-${PAGE}`,
+  get() { try { return JSON.parse(this.area.getItem(this.key)); } catch { return null; } },
+  set(v) { try { this.area.setItem(this.key, JSON.stringify(v)); } catch {} },
+  clear() { try { this.area.removeItem(this.key); } catch {} },
+};
+
+// ═════════════════════════ helpers ═════════════════════════
+const room = () => S.room || {};
+const curKey = () => `${room().game}_${room().round}`;
+const me = () => S.players.find((p) => p.id === S.uid);
+const pl = (id) => S.players.find((p) => p.id === id);
+const pname = (id) => esc(pl(id)?.name || 'someone');
+const alive = () => S.players.filter((p) => p.alive);
+const nowVotes = () => S.votes.filter((v) => v.game === room().game && v.round === room().round);
+const nowActions = () => S.actions.filter((a) => a.game === room().game && a.round === room().round);
+const roleOf = (id) => (S.isMod ? S.mod?.roles?.[id] : id === S.uid ? S.secret?.role : pl(id)?.role);
+const RC = (r) => G.ROLES[r]?.color || '#999';
+
+function av(i, size = 56, { dead = false, role = null } = {}) {
+  const svg = (AV_CACHE[i] ||= avatarSVG(i ?? 0));
+  const badge = dead ? `<div class="ghostbadge">${GHOST}</div>` : role ? `<div class="rolebadge">${ROLE_SVG[role]}</div>` : '';
+  return `<div class="av ${dead ? 'dead' : ''}" ${size ? `style="--s:${size}px"` : ''}>${svg}${badge}</div>`;
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function secsLeft() {
+  const end = room().nightEndsAt;
+  return end ? Math.max(0, Math.ceil((end - Date.now()) / 1000)) : 0;
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = Object.assign(document.createElement('textarea'), { value: text });
+    document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+}
+
+// always points at the PUBLIC player page (index.html), even when used from admin.html
+const inviteLink = () => new URL(`./?room=${S.code}`, location.href).href;
+
+// ═════════════════════════ rendering ═════════════════════════
+// A tiny DOM "morph": instead of replacing the whole screen on every update,
+// only change what's different. Elements stay alive, so CSS transitions
+// (selection rings, card flips, press states) actually play, and inputs keep focus.
+const seenKeys = new Set();
+function morph(from, to) {
+  const a = [...from.childNodes];
+  const b = [...to.childNodes];
+  b.forEach((n, i) => {
+    const o = a[i];
+    if (!o) { from.appendChild(n); arrive(n); return; }
+    const key = (x) => (x.nodeType === 1 ? x.getAttribute('data-key') : null);
+    if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName || key(o) !== key(n)) {
+      from.replaceChild(n, o); arrive(n); return;
+    }
+    if (o.isEqualNode(n)) return;             // identical subtree (e.g. an unchanged avatar SVG): native check, skip the walk
+    if (o.nodeType !== 1) {
+      if (o.nodeValue !== n.nodeValue) {
+        o.nodeValue = n.nodeValue;
+        const pop = o.parentElement?.closest('[data-pop]');
+        if (pop) pop.animate([{ transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+      }
+      return;
+    }
+    for (const { name } of [...o.attributes]) {
+      if (!n.hasAttribute(name) && !(name === 'open' && o.tagName === 'DETAILS')) o.removeAttribute(name);
+    }
+    for (const { name, value } of [...n.attributes]) if (o.getAttribute(name) !== value) o.setAttribute(name, value);
+    if (o.tagName === 'INPUT' || o.tagName === 'TEXTAREA') {
+      if (document.activeElement !== o && o.type !== 'file') o.value = n.getAttribute('value') ?? '';
+      return;
+    }
+    morph(o, n);
+  });
+  for (let i = a.length - 1; i >= b.length; i--) a[i].remove();
+}
+// a keyed element we've never shown before (new player, new log line) fades in gently
+function arrive(n) {
+  if (n.nodeType !== 1 || $app.classList.contains('enter')) return;
+  const k = n.getAttribute('data-key');
+  if (!k || seenKeys.has(k)) return;
+  seenKeys.add(k);
+  n.animate([{ opacity: 0, transform: 'translateY(6px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+}
+function rememberKeys() { $app.querySelectorAll('[data-key]').forEach((el) => seenKeys.add(el.getAttribute('data-key'))); }
+
+function toggle(key, title, desc, on) {
+  return `<button class="toggle ${on ? 'on' : ''}" data-act="toggleSetting" data-k="${key}" role="switch" aria-checked="${!!on}">
+    <span class="tg-text"><b>${title}</b><span>${desc}</span></span><span class="switch"><i></i></span></button>`;
+}
+
+function extrasNote() {
+  const st = room().settings || {};
+  const on = [st.hunch && '🤔 Village hunch', st.rumor && '🗝️ Rumors'].filter(Boolean);
+  return on.length ? `<p class="small" style="opacity:.85">Extra clues this game: <b>${on.join(' · ')}</b></p>` : '';
+}
+
+function hunchCard() {
+  const h = room().morning?.hunch;
+  if (!room().settings?.hunch || !h) return '';
+  const names = h.ids.map((id) => `<b>${pname(id)}</b>`);
+  return `<div class="clue hunch">
+    <div class="clue-avs">${h.ids.slice(0, 3).map((id) => av(pl(id)?.avatar, 44, { dead: !pl(id)?.alive })).join('')}</div>
+    <div><small>🤔 Village hunch</small><p>Last night the village suspected ${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0]} the most <span class="muted">(${h.count} of ${h.total} taps)</span>.</p></div>
+  </div>`;
+}
+
+function rumorCard() {
+  const ids = S.secret?.rumor?.[room().round];
+  if (!room().settings?.rumor || !ids || !me()?.alive) return '';
+  return `<div class="clue rumor">
+    <div><small>🗝️ A rumor reached only you</small>
+      <p>A little bird whispered: <b>one of these is a werewolf.</b> Share it carefully!</p></div>
+    <div class="clue-row">${ids.map((id) => `<div class="clue-who">${av(pl(id)?.avatar, 48, { dead: !pl(id)?.alive })}<span>${pname(id)}</span></div>`).join('')}</div>
+  </div>`;
+}
+
+function ringHTML(extra = '') {
+  const total = room().settings?.nightSeconds || 45;
+  const left = secsLeft();
+  return `<div class="ring ${left <= 5 ? 'urgent' : ''}" data-ring ${extra}>
+    <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="44"/><circle class="prog" cx="50" cy="50" r="44" pathLength="100" style="stroke-dashoffset:${100 - (left / total) * 100}"/></svg>
+    <span data-countdown aria-label="${left} seconds left">${left}</span></div>`;
+}
+
+const waiting = (t) => `<div class="waiting muted">${t}<span class="dots"><i></i><i></i><i></i></span></div>`;
+let raf = null;
+function render() {
+  if (raf) return;
+  raf = setTimeout(() => { raf = null; draw(); }, 16); // setTimeout (not rAF) so background tabs keep updating
+}
+
+function draw() {
+  let html = '';
+  let theme = 'night';
+
+  if (S.view === 'loading') html = `<div class="center" style="padding-top:30vh"><div class="hero"><div class="wolf">${brandIcon(S.brand.icon)}</div></div><p class="muted">Waking up the village…</p></div>`;
+  else if (S.view === 'error') html = viewError();
+  else if (S.view === 'home') html = viewHome();
+  else if (S.view === 'join') html = viewJoin();
+  else if (S.view === 'adminSetup' || S.view === 'adminLogin') { html = viewAdminGate(); }
+  else if (S.view === 'adminHome') { html = viewAdminHome(); theme = 'day'; }
+  else if (S.view === 'game') {
+    const ph = room().phase;
+    theme = ['morning', 'day', 'vote', 'verdict'].includes(ph) ? 'day' : ph === 'ended' ? (room().winner === 'village' ? 'day' : 'night') : 'night';
+    if (S.isMod) theme = 'day';
+    html = S.isMod ? viewMod() : viewPlayer();
+  }
+  document.body.className = `theme-${theme}`;
+  $app.classList.toggle('wide', (S.view === 'game' && S.isMod) || S.view === 'adminHome');
+  // background music follows the game: spooky at night, cheerful by day
+  const ph = room().phase;
+  SND.music(S.view === 'game'
+    ? (['morning', 'day', 'vote', 'verdict'].includes(ph) || (ph === 'ended' && room().winner === 'village') ? 'day' : 'night')
+    : PAGE === 'admin' ? null : 'night');
+  // play the pop-in animation only when the screen actually changes (not on every vote/update)
+  const screen = `${S.view}|${S.isMod}|${room().phase}|${room().round}`;
+  if (screen !== draw.last) {
+    draw.last = screen;
+    $app.classList.add('enter');
+    clearTimeout(draw.t);
+    draw.t = setTimeout(() => $app.classList.remove('enter'), 900);
+  }
+  // Most database updates (someone else's vote or night pick) don't change what THIS
+  // screen shows. If the markup is identical, skip the parse + compare entirely.
+  const full = html + (S.ui.sheet ? viewSheet() : '');
+  if (full === draw.lastHtml && $app.firstChild) { tick(); return; }
+  draw.lastHtml = full;
+  const next = document.createElement('div');
+  next.innerHTML = full;
+  morph($app, next);
+  if (S.view === 'join') drawAvGrid();
+  if (S.view === 'adminHome') drawBrandPreview();
+  rememberKeys();
+  tick();
+}
+
+// ───────── home ─────────
+function viewHome() {
+  return `
+  <div class="topbar" style="justify-content:flex-end;margin-bottom:0">${soundBtn()}</div>
+  <section class="hero stack">
+    <div class="wolf">${brandIcon(S.brand.icon)}</div>
+    <div class="title"><small>${esc(S.brand.village)}</small><h1>${esc(S.brand.name)}</h1></div>
+    <p class="muted">${esc(S.brand.tagline)}</p>
+    <div class="face-strip">${[0, 4, 7, 9, 11, 2, 14].map((i) => av(i, 46)).join('')}</div>
+  </section>
+  <div class="stack" style="margin-top:20px">
+    <button class="btn sun" data-act="goJoin">${ICON.users} Join a game</button>
+  </div>
+  <div style="height:22px"></div>
+  <details class="card glass">
+    <summary style="cursor:pointer;font-weight:800">🐺 How to play (30 seconds)</summary>
+    <div class="stack small" style="margin-top:12px">
+      <p><b>Two secret teams.</b> A few players are werewolves. Everyone else is the village.</p>
+      <p><b>🌙 Night:</b> the wolves pick someone to gobble, the doctor protects someone, and the seer peeks at someone's role. Everyone taps their phone, so nobody can tell who's who.</p>
+      <p><b>☀️ Day:</b> talk on Teams! Accuse, defend, bluff. Then everyone votes on their phone to kick someone out.</p>
+      <p><b>🏆 Win:</b> the village wins when all wolves are gone. The wolves win when there are as many wolves as villagers.</p>
+    </div>
+  </details>
+  ${S.be?.mode === 'demo' ? `<p class="banner" style="margin-top:14px">🧪 Demo mode: every browser tab is a separate player. Add your Firebase settings in <b>js/config.js</b> to play online with friends.</p>` : ''}`;
+}
+
+function viewError() {
+  return `<div class="card stack center" style="margin-top:20vh"><h2>Uh-oh 🙀</h2><p class="muted">${esc(S.error)}</p><button class="btn" data-act="reload">${ICON.refresh} Try again</button></div>`;
+}
+
+// ───────── join ─────────
+function viewJoin() {
+  return `
+  <div class="topbar"><button class="iconbtn" data-act="home" aria-label="Back">${ICON.back}</button><h3>Join the village</h3></div>
+  <div class="card stack">
+    <div class="field"><label for="f-code">Room code</label>
+      <input id="f-code" class="input code" data-bind="code" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="ABCDE" value="${esc(S.ui.code)}"/></div>
+    <div class="field"><label for="f-name">Your name</label>
+      <input id="f-name" class="input" data-bind="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Jordan" value="${esc(S.ui.name)}"/></div>
+    <div class="field"><label>Pick your villager</label><div class="avpick" id="avgrid"></div></div>
+    <button class="btn mint" data-act="join">${ICON.arrow} Join game</button>
+  </div>`;
+}
+
+function drawAvGrid() {
+  const el = document.getElementById('avgrid');
+  if (!el) return;
+  const taken = new Set(S.joinPlayers.filter((p) => p.id !== S.uid).map((p) => p.avatar));
+  if (S.ui.avatar == null || taken.has(S.ui.avatar)) {
+    const free = AVATARS.map((_, i) => i).filter((i) => !taken.has(i));
+    S.ui.avatar = free.length ? free[Math.floor(Math.random() * free.length)] : 0;
+  }
+  el.innerHTML = AVATARS.map((a, i) => `
+    <button class="${i === S.ui.avatar ? 'on' : ''} ${taken.has(i) ? 'taken' : ''}" data-act="pickAv" data-i="${i}" title="${esc(a.name)}${taken.has(i) ? ' (taken)' : ''}" ${taken.has(i) ? 'disabled' : ''}>${av(i, 0)}</button>`).join('');
+}
+
+function watchJoinRoom() {
+  S.joinSub?.(); S.joinSub = null; S.joinPlayers = [];
+  if (S.ui.code.length === 5) {
+    S.joinSub = S.be.watchCol(`rooms/${S.ui.code}/players`, (list) => { S.joinPlayers = list; drawAvGrid(); });
+  }
+  drawAvGrid();
+}
+
+// ───────── player screens ─────────
+function viewPlayer() {
+  if (!S.room || !S.playersLoaded) return `<div class="center muted" style="padding-top:30vh">Finding your village…</div>`;
+  const r = room(); const m = me();
+  if (!m) return `<div class="card center stack" style="margin-top:20vh"><h2>You left the village</h2><button class="btn" data-act="leave">Back home</button></div>`;
+  const role = S.secret?.role;
+  const showRole = role && r.phase !== 'lobby';
+  const top = `
+  <div class="topbar">
+    <span class="chip status"><b class="code">${esc(S.code)}</b><i></i>${['night', 'roles', 'lobby'].includes(r.phase) ? ICON.moon : ICON.sun}${PHASE_LABEL[r.phase] || ''}${r.round ? ` ${r.round}` : ''}</span>
+    <span class="spacer"></span>
+    ${showRole ? `<button class="chip role" data-act="peek">${ICON.eye} Role</button>` : ''}
+    ${soundBtn()}
+  </div>`;
+  const body = {
+    lobby: pLobby, roles: pRoles, night: pNight, morning: pMorning,
+    day: pDay, vote: pVote, verdict: pVerdict, ended: pEnded,
+  }[r.phase] || (() => '');
+  return top + body();
+}
+
+function tiles(list, { pick = false, sel = null, disabled = () => false, tag = () => '', counts = null, color = null } = {}) {
+  return `<div class="grid">${list.map((p) => {
+    const dead = !p.alive;
+    const t = tag(p);
+    const el = pick ? 'button' : 'div';
+    const c = counts?.[p.id];
+    const on = Array.isArray(sel) ? sel.includes(p.id) : sel === p.id;
+    return `<${el} data-key="t-${p.id}" class="tile ${on ? 'on' : ''}" ${pick ? `data-act="pick" data-id="${p.id}"` : ''} ${pick && disabled(p) ? 'disabled' : ''} ${color ? `style="--pick:${color}"` : ''}>
+      ${c ? `<span class="count" data-pop>${c}</span>` : ''}
+      ${av(p.avatar, 62, { dead, role: dead && p.role ? p.role : null })}
+      <span class="name">${esc(p.name)}${p.id === S.uid ? ' (you)' : ''}</span>
+      ${t ? `<span class="tag">${t}</span>` : ''}
+    </${el}>`;
+  }).join('')}</div>`;
+}
+
+function pLobby() {
+  const m = me();
+  return `
+  <div class="card stack center">
+    <div style="margin:0 auto">${av(m.avatar, 110)}</div>
+    <h2>You're in, ${esc(m.name)}!</h2>
+    <p class="muted">Hang tight. The moderator will deal the secret roles soon. Keep this page open next to Teams. 📱</p>
+    ${extrasNote()}
+  </div>
+  <h3 class="section-title">Villagers here <span>${S.players.length}</span></h3>
+  ${tiles(S.players)}
+  <button class="btn ghost small" style="margin:22px auto 0;display:flex" data-act="leave">Leave game</button>`;
+}
+
+function roleBack(role) {
+  const R = G.ROLES[role];
+  const partners = (S.secret?.partners || []).map(pname);
+  return `<div class="stack" style="--rc:${R.color}">
+    <div class="art">${ROLE_SVG[role]}</div>
+    <div><span class="teampill" style="--rc:${role === 'werewolf' ? R.color : '#3DBF95'}">${R.team === 'wolves' ? 'Team Wolves 🐺' : 'Team Village 🏡'}</span></div>
+    <div class="rolename" style="--rc:${R.color}">${R.name}</div>
+    <p class="muted">${R.blurb}</p>
+    ${role === 'werewolf' ? `<p><b>${partners.length ? `Your pack: ${partners.join(', ')}` : 'You are the lone wolf!'}</b></p>` : ''}
+  </div>`;
+}
+
+function pRoles() {
+  const role = S.secret?.role;
+  if (!role) return `<div class="card center"><p>Shuffling the role cards… 🃏</p></div>`;
+  return `
+  <div class="flip ${S.ui.flipped ? 'open' : ''}" data-act="flip">
+    <div class="flip-inner">
+      <div class="face front"><div><div class="moonbig"></div><h2>Your secret role</h2><p style="opacity:.8;margin-top:8px">Don't let anyone see your screen 🤫</p><span class="tap-hint">👆 Tap to reveal</span></div></div>
+      <div class="face back">${roleBack(role)}</div>
+    </div>
+  </div>
+  ${waiting(S.ui.flipped ? 'Tap the card to hide it. Waiting for night' : 'Waiting for night')}`;
+}
+
+function ghostCard(extra = '') {
+  return `<div class="card glass center stack">
+    <div style="width:110px;margin:0 auto;animation:bob 2.4s ease-in-out infinite">${GHOST}</div>
+    <h2>You're a ghost 👻</h2>
+    <p class="muted">You can watch, but please stay quiet on Teams and don't give hints!</p>${extra}</div>`;
+}
+
+function pNight() {
+  const m = me(); const role = S.secret?.role;
+  const ring = ringHTML();
+  if (!m.alive) return `<div class="stack">${ring}${ghostCard()}</div>`;
+  const r = room();
+  const type = G.actionTypeFor(role);
+  const sel = S.myAction?.target || null;
+  const seerResult = role === 'seer' ? S.secret?.seer?.[r.round] : null;
+  const partners = new Set(S.secret?.partners || []);
+  let title, hint, list, disabled = () => false, tag = () => '', color;
+  const others = alive().filter((p) => p.id !== S.uid);
+  switch (role) {
+    case 'werewolf':
+      title = 'Who will you gobble up tonight?'; color = '#FF6F91';
+      hint = 'If your pack picks different people, the moon decides at random. 🎲';
+      list = alive(); disabled = (p) => p.id === S.uid || partners.has(p.id);
+      tag = (p) => (p.id === S.uid || partners.has(p.id) ? '🐺 pack' : '');
+      break;
+    case 'doctor':
+      title = 'Who will you protect tonight?'; color = '#3DBF95';
+      hint = 'You can protect yourself, just not the same person two nights in a row.';
+      list = alive(); disabled = (p) => p.id === S.secret?.lastProtected;
+      tag = (p) => (p.id === S.secret?.lastProtected ? 'last night' : '');
+      break;
+    case 'seer':
+      title = 'Whose secret will you uncover?'; color = '#8E6CF0';
+      hint = 'You get one peek per night. Choose carefully!';
+      list = others; disabled = () => !!seerResult;
+      break;
+    default:
+      title = 'Who do you suspect?'; color = '#FFC94D';
+      hint = 'Everyone taps something at night so nobody can tell who has powers. 🤫';
+      list = others;
+  }
+  const picked = seerResult ? seerResult.target : sel;
+  return `
+  <div class="stack">
+    ${ring}
+    <div class="center"><h2>${title}</h2><p class="muted small" style="margin-top:6px">${hint}</p></div>
+    ${seerResult ? `<div class="result ${seerResult.isWolf ? 'wolf' : 'safe'}">
+        ${av(pl(seerResult.target)?.avatar, 64)}
+        <div><b style="font-size:18px">${pname(seerResult.target)}</b><br/>${seerResult.isWolf ? 'is a <b>WEREWOLF!</b> 🐺' : 'is <b>not</b> a werewolf. 😇'}</div>
+      </div>` : ''}
+    ${tiles(list, { pick: true, sel: picked, disabled, tag, color })}
+    <p class="center muted small">${seerResult ? 'Your vision is complete for tonight. ✨' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : `Tap a villager. Type: ${type}`}</p>
+  </div>`;
+}
+
+function pMorning() {
+  const mo = room().morning || {};
+  if (!mo.victim) return `
+    <div class="card announce">
+      <div class="rays"></div>
+      <div class="big-art">${villagerSVG()}</div>
+      <h2>A peaceful night! ☀️</h2>
+      <p class="muted" style="margin-top:8px">Everyone woke up safe and sound. Maybe the doctor saved someone…</p>
+    </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
+  const v = pl(mo.victim); const role = v?.role;
+  const isMe = mo.victim === S.uid;
+  return `
+    <div class="card announce">
+      <div class="rays" style="--ray:#ECE6FF"></div>
+      <div class="big-av">${av(v?.avatar, 120, { dead: true })}</div>
+      <h2>${isMe ? 'Oh no, it was you!' : `${esc(v?.name)} was gobbled up!`}</h2>
+      <p class="muted" style="margin-top:6px">The village found ${isMe ? 'you' : 'them'} at sunrise.</p>
+      ${role ? `<div class="stamp" style="--rc:${RC(role)}">They were a ${G.ROLES[role].name}</div>` : ''}
+      ${isMe ? `<p style="margin-top:14px"><b>You're a ghost now 👻</b> Watch quietly and no hints!</p>` : ''}
+    </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
+}
+
+function graveyard() {
+  const dead = S.players.filter((p) => !p.alive);
+  if (!dead.length) return '';
+  return `<h3 class="section-title">👻 Ghosts <span>${dead.length}</span></h3>${tiles(dead, { tag: (p) => (p.role ? G.ROLES[p.role].name : '') })}`;
+}
+
+function pDay() {
+  return `
+  <div class="card stack center">
+    <div style="width:140px;margin:0 auto">${villagerSVG()}</div>
+    <h2>Debate time! 🗣️</h2>
+    <p class="muted">Unmute on Teams and talk it out. Who was acting fishy? Who's defending who?</p>
+  </div>
+  ${rumorCard()}${hunchCard()}
+  <h3 class="section-title">Still standing <span>${alive().length}</span></h3>
+  ${tiles(alive())}
+  ${graveyard()}`;
+}
+
+function myVotes() {
+  return nowVotes().find((v) => v.uid === S.uid)?.targets || [];
+}
+const votesEach = () => G.votesAllowed(room().settings?.votesPerPlayer, alive().length);
+
+function pVote() {
+  const m = me();
+  const votes = nowVotes();
+  const mine = myVotes();
+  const n = votesEach();
+  const counts = {};
+  votes.forEach((v) => { if (pl(v.uid)?.alive) (v.targets || []).forEach((t) => { counts[t] = (counts[t] || 0) + 1; }); });
+  const voters = alive().length;
+  const done = votes.filter((v) => pl(v.uid)?.alive && (v.targets || []).length).length;
+  return `
+  <div class="stack">
+    <div class="center"><h2>${m.alive ? 'Who should leave the village?' : 'The village is voting…'}</h2>
+      <p class="muted small" style="margin-top:6px">${m.alive
+        ? (n > 1 ? `You have <b>${n} votes</b>, one per person. Tap to add or remove.` : 'Tap to vote.') + ' You can change your mind until the moderator closes voting.'
+        : 'Ghosts can watch, but not vote. 👻'}</p></div>
+    <div class="row" style="justify-content:center;flex-wrap:wrap">
+      <span class="chip" data-pop>${ICON.vote} ${done} of ${voters} voted</span>
+      ${m.alive ? `<span class="chip votes-left">${Array.from({ length: n }, (_, i) => `<i class="pip ${i < mine.length ? 'used' : ''}"></i>`).join('')} ${n - mine.length} left</span>` : ''}
+    </div>
+    ${tiles(alive().filter((p) => p.id !== S.uid || !m.alive), { pick: m.alive, sel: mine, counts, color: '#FF6F91', disabled: (p) => p.id === S.uid })}
+    ${graveyard()}
+  </div>`;
+}
+
+function pVerdict() {
+  const vd = room().verdict || {};
+  if (!vd.out) return `
+    <div class="card announce">
+      <div style="font-size:64px">🤝</div>
+      <h2>${vd.noVotes ? 'Nobody voted!' : "It's a tie!"}</h2>
+      <p class="muted" style="margin-top:6px">Nobody leaves the village today.</p>
+    </div>${waiting('Night is coming')}`;
+  const v = pl(vd.out); const role = v?.role;
+  return `
+    <div class="card announce">
+      <div class="rays" style="--ray:${role === 'werewolf' ? '#FFE7A8' : '#ECE6FF'}"></div>
+      <div class="big-av">${av(v?.avatar, 120, { dead: true })}</div>
+      <h2>The village voted out ${vd.out === S.uid ? 'you' : esc(v?.name)}!</h2>
+      ${role ? `<div class="stamp" style="--rc:${RC(role)}">${role === 'werewolf' ? 'A WEREWOLF! 🎉' : `Oops, a ${G.ROLES[role].name} 😬`}</div>` : ''}
+    </div>${waiting('Night is coming')}`;
+}
+
+function winHero() {
+  const w = room().winner;
+  return `<div class="card win stack">
+    <div class="art">${w === 'wolves' ? ROLE_SVG.werewolf : ROLE_SVG.villager}</div>
+    <h1 style="font-size:36px">${w === 'wolves' ? 'The Werewolves win! 🐺' : 'The Village wins! 🎉'}</h1>
+    <p class="muted">${w === 'wolves' ? 'The wolves out-numbered the village. Awoooo!' : 'Every werewolf has been found. Moonhollow is safe!'}</p>
+  </div>`;
+}
+
+function rolesList() {
+  return `<div class="plist">${S.players.map((p) => {
+    const role = roleOf(p.id) || p.role;
+    return `<div class="prow ${p.alive ? '' : 'dead'}">${av(p.avatar, 42, { dead: !p.alive })}
+      <div class="who"><b>${esc(p.name)}${p.id === S.uid ? ' (you)' : ''}</b><span>${p.alive ? 'Survived' : 'Ghost 👻'}</span></div>
+      ${role ? `<span class="rtag" style="--rc:${RC(role)}">${G.ROLES[role].name}</span>` : ''}</div>`;
+  }).join('')}</div>`;
+}
+
+function pEnded() {
+  confetti();
+  return `<div class="stack">${winHero()}
+    <div class="card stack"><h3>Everyone's secret roles</h3>${rolesList()}</div>
+    <p class="center muted">The moderator can start a new game. Stay here!</p>
+    <button class="btn ghost small" style="margin:0 auto;display:flex" data-act="leave">Leave</button></div>`;
+}
+
+function viewSheet() {
+  const role = S.secret?.role;
+  if (!role) return '';
+  return `<div class="sheet-bg" data-act="closeSheet"><div class="sheet">${roleBack(role)}
+    <p class="muted small" style="margin-top:12px">Tap anywhere to hide</p></div></div>`;
+}
+
+// ───────── moderator screens ─────────
+function viewMod() {
+  const r = room();
+  const idx = PHASES.indexOf(r.phase);
+  const steps = PHASES.map((p, i) => `<span class="${r.phase === p ? 'on' : i < idx || r.phase === 'ended' ? 'done' : ''}">${PHASE_LABEL[p]}</span>`).join('');
+  return `
+  <div class="topbar">
+    <span class="chip" style="background:var(--purple);color:#fff">${ICON.crown} Moderator</span>
+    <span class="chip">${r.round ? `Round ${r.round}` : 'Setting up'}</span>
+    <span class="spacer"></span>
+    ${soundBtn()}
+    <button class="btn ghost small" data-act="leave">${ICON.back} Admin home</button>
+  </div>
+  <div class="modgrid">
+    <div class="stack">
+      <div class="card stack">
+        <div class="row wrap">
+          <div><p class="muted small" style="font-weight:800">ROOM CODE</p><div class="codebig">${esc(S.code)}</div></div>
+          <span class="spacer"></span>
+          <div class="row wrap">
+            <button class="btn small" data-act="copyInvite">${ICON.copy} Copy invite for Teams</button>
+            ${S.be.mode === 'demo' ? `<button class="btn small sun" data-act="openTab">${ICON.users} Open player tab</button>` : ''}
+          </div>
+        </div>
+        <p class="muted small">Paste the invite into the Teams meeting chat. Players join on their phones.</p>
+      </div>
+      <div class="card stack">
+        <div class="steps">${steps}</div>
+        ${modControl()}
+      </div>
+      <div class="card stack">
+        <div class="row"><h3>Players (${S.players.length})</h3><span class="spacer"></span>
+          ${r.phase === 'lobby' ? `<button class="btn small mint" data-act="addBot">${ICON.bot} Add test bot</button>` : ''}</div>
+        ${modPlayers()}
+      </div>
+    </div>
+    <div class="stack">
+      <p class="banner">🔒 Only you can see this screen. Keep this tab open: it runs the game. Don't share your screen on Teams!</p>
+      <div class="card stack"><h3>📜 Moderator log</h3>
+        <div class="log">${(S.mod?.log || []).slice().reverse().map((l) => `<div data-key="log-${l.t}">${l.text}</div>`).join('') || '<p class="muted small">Things that happen will show up here.</p>'}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function script(t) { return `<div class="script">${t}</div>`; }
+
+function modControl() {
+  const r = room();
+  const n = S.players.length;
+  const w = r.settings?.wolves ?? 2;
+  switch (r.phase) {
+    case 'lobby': {
+      const maxW = G.maxWolves(n);
+      const problem = n < G.MIN_PLAYERS ? `Need at least ${G.MIN_PLAYERS} players (you have ${n}).` : w > maxW ? `Too many werewolves for ${n} players (max ${maxW}).` : '';
+      return `
+        <h2>Set up the game</h2>
+        <div class="row wrap" style="gap:24px">
+          <div class="field"><label>Werewolves</label>
+            <div class="stepper"><button data-act="wolves" data-d="-1" aria-label="fewer">−</button><b>${w}</b><button data-act="wolves" data-d="1" aria-label="more">+</button></div>
+            <span class="muted small">Suggested for ${n}: ${G.suggestWolves(n)}</span></div>
+          <div class="field"><label>Votes per player</label>
+            <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div>
+            <span class="muted small">each morning vote</span></div>
+          <div class="field" style="flex:1;min-width:220px"><label>Night timer</label>
+            <div class="seg">${[30, 45, 60, 90].map((s) => `<button class="${(r.settings?.nightSeconds ?? 45) === s ? 'on' : ''}" data-act="nightSecs" data-s="${s}">${s}s</button>`).join('')}</div></div>
+        </div>
+        <p class="muted small">Roles: ${w} ${w > 1 ? 'werewolves' : 'werewolf'} · 1 doctor · 1 seer · ${Math.max(0, n - w - 2)} villagers</p>
+        <div class="field"><label>Extra clues for the village</label>
+          ${toggle('hunch', '🤔 Village hunch', 'Each morning, everyone sees who got the most “Who do you suspect?” taps last night. The count is anonymous.', r.settings?.hunch)}
+          ${toggle('rumor', '🗝️ Rumors', 'Each morning, one random villager secretly hears a true clue: “One of these 3 people is a werewolf.” Makes the game easier for the village.', r.settings?.rumor)}
+        </div>
+        ${problem ? `<p class="banner">${problem}</p>` : ''}
+        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>${ICON.sparkle} Deal secret roles</button>`;
+    }
+    case 'roles':
+      return `<h2>Roles are dealt! 🃏</h2>
+        ${script('“Check your phone and tap the card to see your secret role. Don’t show anyone!”')}
+        <button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`;
+    case 'night': {
+      const acted = new Set(nowActions().map((a) => a.uid));
+      const al = alive();
+      return `<div class="row">${ringHTML('style="margin:0"')}
+          <div><h2>Night ${r.round} 🌙</h2><p class="muted">${al.filter((p) => acted.has(p.id)).length} of ${al.length} players have chosen</p></div></div>
+        ${script('“Night falls on Moonhollow… Everyone mute and turn your camera off. Make your choice on your phone.”')}
+        <button class="btn pink" data-act="endNight">${ICON.skip} End night now</button>`;
+    }
+    case 'morning': {
+      const v = r.morning?.victim;
+      return `<h2>Morning ☀️</h2>
+        ${v ? script(`“As the sun rose… the village found <b>${pname(v)}</b> gobbled up! They were a <b>${G.ROLES[S.mod?.roles?.[v]]?.name}</b>.”`)
+            : script('“Good news! Nobody died last night. Someone must have been protected…”')}
+        ${r.morning?.hunch ? script(`“The village’s hunch… most of you suspected <b>${r.morning.hunch.ids.map(pname).join(' and ')}</b> last night. Hmm…”`) : ''}
+        ${r.morning?.rumor ? `<p class="banner">🗝️ Rumor sent privately to <b>${pname(r.morning.rumor)}</b>. Don't say who!</p>` : ''}
+        <button class="btn sun" data-act="day">${ICON.sun} Start the debate</button>`;
+    }
+    case 'day':
+      return `<h2>Debate time 🗣️</h2>
+        ${script('“Unmute and talk! Who’s acting suspicious? When you’re ready, we vote.”')}
+        <div class="row wrap"><div class="field"><label>Votes per player this round</label>
+          <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div></div>
+          <p class="muted small" style="flex:1;min-width:180px">Each player can vote for up to this many different people. Most votes is out, and a tie means nobody is out.</p></div>
+        <button class="btn" data-act="openVote">${ICON.vote} Open voting</button>`;
+    case 'vote': {
+      const votes = nowVotes().filter((v) => pl(v.uid)?.alive && (v.targets || []).length);
+      return `<h2>Voting 🗳️</h2>
+        <p class="muted">${votes.length} of ${alive().length} have voted · ${votesEach()} vote${votesEach() > 1 ? 's' : ''} each</p>
+        ${script(votesEach() > 1 ? `“Voting is open on your phones! Everyone gets ${votesEach()} votes. Choose wisely!”` : '“Voting is open on your phones. Choose wisely!”')}
+        <button class="btn pink" data-act="closeVote" ${votes.length ? '' : ''}>${ICON.check} Close voting</button>`;
+    }
+    case 'verdict': {
+      const vd = r.verdict || {};
+      return `<h2>Verdict ⚖️</h2>
+        ${vd.out ? script(`“The village has spoken… <b>${pname(vd.out)}</b> is out! They were a <b>${G.ROLES[S.mod?.roles?.[vd.out]]?.name}</b>.”`)
+                 : script(vd.noVotes ? '“Nobody voted, so nobody leaves today.”' : '“It’s a tie! Nobody leaves the village today.”')}
+        <button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`;
+    }
+    case 'ended':
+      return `${winHero()}<button class="btn mint" data-act="again">${ICON.refresh} Play again with same players</button>`;
+    default: return '';
+  }
+}
+
+function modPlayers() {
+  const r = room();
+  const acts = Object.fromEntries(nowActions().map((a) => [a.uid, a]));
+  const votes = Object.fromEntries(nowVotes().map((v) => [v.uid, v.targets || []]));
+  const verb = { kill: '🐺 attacks', protect: '🛡️ protects', inspect: '🔮 checks', suspect: '🤔 suspects' };
+  if (!S.players.length) return `<p class="muted">Nobody yet. Share the invite in the Teams chat! 💌</p>`;
+  return `<div class="plist">${S.players.map((p) => {
+    const role = S.mod?.roles?.[p.id];
+    let activity = p.alive ? 'Alive' : 'Ghost 👻';
+    if (p.bot) activity += ' · 🤖 bot';
+    if (r.phase === 'night' && p.alive) activity = acts[p.id] ? `${verb[acts[p.id].type]} ${pname(acts[p.id].target)}` : '⏳ choosing…';
+    if (r.phase === 'vote' && p.alive) activity = votes[p.id]?.length ? `🗳️ votes ${votes[p.id].map(pname).join(', ')}` : '⏳ thinking…';
+    return `<div class="prow ${p.alive ? '' : 'dead'}">${av(p.avatar, 42, { dead: !p.alive })}
+      <div class="who"><b>${esc(p.name)}</b><span>${activity}</span></div>
+      ${role && r.phase !== 'lobby' ? `<span class="rtag" style="--rc:${RC(role)}">${G.ROLES[role].name}</span>` : ''}
+      ${r.phase === 'lobby' ? `<button class="xbtn" data-act="kick" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${ICON.x}</button>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ═════════════════════════ branding & sound buttons ═════════════════════════
+const ICON_CHOICES = [
+  { type: 'art', id: 'werewolf' }, { type: 'art', id: 'seer' }, { type: 'art', id: 'doctor' },
+  { type: 'art', id: 'villager' }, { type: 'art', id: 'ghost' },
+  ...[0, 4, 2, 9, 11, 3, 7].map((i) => ({ type: 'avatar', id: i })),
+];
+const sameIcon = (a, b) => a && b && a.type === b.type && a.id === b.id && a.data === b.data;
+
+function iconSVG(icon) {
+  if (!icon || icon.type === 'art') return icon?.id === 'ghost' ? GHOST : ROLE_SVG[icon?.id] || ROLE_SVG.werewolf;
+  if (icon.type === 'avatar') return AV_CACHE[icon.id] ||= avatarSVG(icon.id);
+  return '';
+}
+function brandIcon(icon) {
+  if (icon?.type === 'image' && icon.data) return `<img class="bimg" src="${esc(icon.data)}" alt="App icon"/>`;
+  return iconSVG(icon);
+}
+function applyBrand() {
+  const b = S.brand;
+  document.title = b.name + (PAGE === 'admin' ? ' · Admin' : '');
+  const href = b.icon?.type === 'image' ? b.icon.data : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSVG(b.icon));
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.append(link); }
+  link.href = href;
+}
+
+function soundBtn() {
+  const m = SND.getMode();
+  const icon = m === 'all' ? ICON.soundAll : m === 'sfx' ? ICON.soundSfx : ICON.soundOff;
+  const label = m === 'all' ? 'Music and sounds on' : m === 'sfx' ? 'Sound effects only' : 'Muted';
+  return `<button class="iconbtn" data-act="sound" aria-label="${label}" title="${label}">${icon}</button>`;
+}
+
+async function fileToIcon(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const c = document.createElement('canvas'); c.width = c.height = 192;
+    const s = Math.min(img.width, img.height);
+    c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 192, 192);
+    let d = c.toDataURL('image/webp', 0.85);
+    if (!d.startsWith('data:image/webp')) d = c.toDataURL('image/png');
+    return d;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+// ═════════════════════════ admin page ═════════════════════════
+function viewAdminGate() {
+  const setup = S.view === 'adminSetup';
+  return `
+  <div class="topbar" style="justify-content:flex-end;margin-bottom:0">${soundBtn()}</div>
+  <section class="hero stack">
+    <div class="wolf" style="width:150px">${brandIcon(S.brand.icon)}</div>
+    <div class="title"><small>${esc(S.brand.village)} · Admin</small><h1>${esc(S.brand.name)}</h1></div>
+  </section>
+  <div class="card stack" style="margin-top:18px">
+    <h3>${setup ? '👋 First-time setup' : '🔒 Moderator sign-in'}</h3>
+    <p class="muted small">${setup
+      ? 'Create an admin PIN. Anyone who wants to moderate a game will need it, so keep it secret!'
+      : 'Enter the admin PIN to run games and change the app’s look. You only need to do this once per device.'}</p>
+    <div class="field"><label for="f-pin">${setup ? 'New admin PIN (at least 4 characters)' : 'Admin PIN'}</label>
+      <input id="f-pin" class="input code" type="password" data-bind="pin" maxlength="20" autocomplete="off" value="${esc(S.ui.pin)}"/></div>
+    ${setup ? `<div class="field"><label for="f-pin2">Type it again</label>
+      <input id="f-pin2" class="input code" type="password" data-bind="pin2" maxlength="20" autocomplete="off" value="${esc(S.ui.pin2)}"/></div>` : ''}
+    <button class="btn" data-act="${setup ? 'adminSetup' : 'adminLogin'}">${ICON.lock} ${setup ? 'Create PIN & continue' : 'Unlock'}</button>
+    ${setup ? '' : `<button class="btn ghost small" style="margin:0 auto" data-act="showSetup">First time? Set up a PIN</button>`}
+  </div>`;
+}
+
+const playerLink = () => new URL('./', location.href).href;
+
+function viewAdminHome() {
+  const d = S.ui.draft ||= JSON.parse(JSON.stringify(S.brand));
+  const last = S.lastRoom;
+  return `
+  <div class="topbar">
+    <div class="av" style="--s:44px">${brandIcon(S.brand.icon)}</div>
+    <h3>${esc(S.brand.name)}</h3>
+    <span class="chip" style="background:var(--purple);color:#fff">${ICON.crown} Admin</span>
+    <span class="spacer"></span>${soundBtn()}
+  </div>
+  <div class="modgrid">
+    <div class="stack">
+      <div class="card stack">
+        <h2>Start a game 🎲</h2>
+        <p class="muted">You'll be the moderator. You run the game but don't play.</p>
+        <button class="btn" data-act="create">${ICON.sparkle} Create a new game</button>
+        ${last ? `<button class="btn sun" data-act="resume">${ICON.play} Resume game ${esc(last.code)} <span class="small" style="opacity:.75">(${PHASE_LABEL[last.phase] || last.phase})</span></button>` : ''}
+      </div>
+      <div class="card stack">
+        <h3>${ICON.link} Player link</h3>
+        <p class="muted small">This is the public link. It only lets people <b>join</b> a game. This admin page has its own separate link, so keep it to yourself.</p>
+        <div class="urlbox"><span>${esc(playerLink())}</span><button class="btn small" data-act="copyLink">${ICON.copy} Copy</button></div>
+      </div>
+      <div class="card stack">
+        <h3>${ICON.lock} Security</h3>
+        <div class="row wrap"><input class="input" style="flex:1;min-width:160px" type="password" data-bind="newPin" placeholder="New admin PIN" maxlength="20" value="${esc(S.ui.newPin)}"/>
+          <button class="btn small" data-act="changePin">Change PIN</button></div>
+        <button class="btn ghost small" data-act="lockDevice">Sign this device out of admin</button>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card stack">
+        <h2>${ICON.gear} App look</h2>
+        <p class="muted small">Change the name and icon everyone sees on the join page, the browser tab and the home-screen icon.</p>
+        <div id="brandPreview" class="brandprev"></div>
+        <div class="field"><label for="b-name">App name</label><input id="b-name" class="input" data-bind="brand.name" maxlength="24" value="${esc(d.name)}"/></div>
+        <div class="field"><label for="b-village">Small title above the name</label><input id="b-village" class="input" data-bind="brand.village" maxlength="24" value="${esc(d.village)}"/></div>
+        <div class="field"><label for="b-tag">Tagline</label><input id="b-tag" class="input" data-bind="brand.tagline" maxlength="70" value="${esc(d.tagline)}"/></div>
+        <div class="field"><label>Icon</label>
+          <div class="iconpick">
+            ${ICON_CHOICES.map((c, i) => `<button class="${sameIcon(c, d.icon) ? 'on' : ''}" data-act="pickIcon" data-i="${i}" aria-label="Icon ${i + 1}">${iconSVG(c)}</button>`).join('')}
+            ${d.icon?.type === 'image' ? `<button class="on" aria-label="Your picture"><img class="bimg" src="${esc(d.icon.data)}" alt=""/></button>` : ''}
+            <label class="upload" title="Upload your own picture">${ICON.upload}<span>Upload</span><input type="file" accept="image/*" data-file="icon" hidden/></label>
+          </div></div>
+        <div class="row"><button class="btn ghost small" data-act="resetBrand">Reset to default</button><span class="spacer"></span>
+          <button class="btn mint small" data-act="saveBrand">${ICON.check} Save look</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function drawBrandPreview() {
+  const el = document.getElementById('brandPreview');
+  const d = S.ui.draft;
+  if (!el || !d) return;
+  el.innerHTML = `<div class="bp-icon">${brandIcon(d.icon)}</div>
+    <div><small>${esc(d.village)}</small><b>${esc(d.name)}</b><span>${esc(d.tagline)}</span></div>`;
+}
+
+async function loadLastRoom() {
+  const sess = store.get();
+  S.lastRoom = null;
+  if (!sess?.code) return;
+  try {
+    const r = await S.be.get(`rooms/${sess.code}`);
+    if (r && r.moderatorUid === S.uid) S.lastRoom = { code: sess.code, phase: r.phase };
+  } catch {}
+  render();
+}
+
+async function adminSetup() {
+  const pin = S.ui.pin.trim();
+  if (pin.length < 4) return toast('Use at least 4 characters 🔢');
+  if (pin !== S.ui.pin2.trim()) return toast("The two PINs don't match 🙈");
+  let existing = null;
+  try { existing = await S.be.get('app/secret'); } catch {}
+  if (existing) { S.view = 'adminLogin'; return toast('A PIN already exists. Please sign in with it.'); }
+  try { await S.be.set('app/secret', { pin }); }
+  catch { S.view = 'adminLogin'; return toast('A PIN already exists. Please sign in with it.'); }
+  await S.be.set(`admins/${S.uid}`, { pin, at: Date.now() });
+  if (!S.brandLoaded) await S.be.set('app/branding', { ...DEFAULT_BRAND });
+  S.ui.pin = S.ui.pin2 = '';
+  S.view = 'adminHome'; SND.play('join');
+}
+
+async function adminLogin() {
+  const pin = S.ui.pin.trim();
+  if (!pin) return toast('Type the admin PIN 🔢');
+  let secret = null;
+  try { secret = await S.be.get('app/secret'); } catch {}           // Firebase never lets anyone read it
+  if (secret && secret.pin !== pin) return toast('Wrong PIN 🙅');      // (demo mode checks here instead)
+  if (S.be.mode === 'demo' && !secret) return toast('No PIN set up yet. Tap "First time?" below.');
+  try { await S.be.set(`admins/${S.uid}`, { pin, at: Date.now() }); }
+  catch { return toast('Wrong PIN 🙅'); }
+  S.ui.pin = '';
+  S.view = 'adminHome'; SND.play('join');
+  loadLastRoom();
+}
+
+async function saveBrand() {
+  const d = S.ui.draft;
+  const clean = {
+    name: (d.name || '').trim() || DEFAULT_BRAND.name,
+    village: (d.village || '').trim(),
+    tagline: (d.tagline || '').trim(),
+    icon: d.icon || DEFAULT_BRAND.icon,
+  };
+  await S.be.set('app/branding', clean);
+  S.ui.draft = null;
+  toast('Saved! Everyone will see the new look ✨');
+}
+
+// ═════════════════════════ timer ═════════════════════════
+function tick() {
+  if (S.view !== 'game') return;
+  const r = room();
+  if (r.phase === 'night') {
+    const left = secsLeft();
+    const total = r.settings?.nightSeconds || 45;
+    document.querySelectorAll('[data-ring]').forEach((el) => {
+      const num = el.querySelector('[data-countdown]');
+      if (num.textContent !== String(left)) {
+        num.textContent = left;
+        if (left <= 5 && left > 0) num.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+      }
+      el.querySelector('.prog').style.strokeDashoffset = 100 - Math.max(0, left / total) * 100;
+      el.classList.toggle('urgent', left <= 5);
+    });
+    if (left > 0 && left <= 5 && left !== S.lastTick) { S.lastTick = left; SND.play('tick'); }
+    if (S.isMod && left <= 0) resolveNightNow();
+  }
+}
+setInterval(tick, 250);
+
+function confetti() {
+  const key = `${S.code}-${room().game}`;
+  if (S.ui.confettiFor === key) return;
+  S.ui.confettiFor = key;
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  const colors = ['#FF6F91', '#FFC94D', '#3DBF95', '#7B6FD0', '#9CD3FF'];
+  for (let i = 0; i < 70; i++) {
+    const c = document.createElement('i');
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[i % colors.length];
+    c.style.animationDuration = 2.2 + Math.random() * 2.4 + 's';
+    c.style.animationDelay = Math.random() * 0.8 + 's';
+    box.append(c);
+  }
+  document.body.append(box);
+  setTimeout(() => box.remove(), 6000);
+}
+
+// ═════════════════════════ room lifecycle ═════════════════════════
+function unsubAll() {
+  S.subs.forEach((u) => u()); S.subs = [];
+  S.actionSub?.(); S.actionSub = null; S.actionKey = null;
+  S.joinSub?.(); S.joinSub = null;
+}
+
+function enterRoom(code, isMod) {
+  unsubAll();
+  Object.assign(S, { code, isMod, view: 'game', playersLoaded: false, room: null, players: [], votes: [], actions: [], secret: null, myAction: null, mod: null });
+  S.ui.flipped = false; S.ui.sheet = null;
+  store.set({ code, isMod });
+  const base = `rooms/${code}`;
+  S.subs.push(S.be.watch(base, (d) => {
+    if (!d) { toast('This game was closed.'); leave(); return; }
+    const prev = S.room;
+    S.room = d;
+    if (prev && prev.phase !== d.phase) {
+      phaseSound(d);
+      if (d.phase === 'roles') S.ui.flipped = false;
+      S.ui.sheet = null;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      navigator.vibrate?.(60);
+    }
+    if (!isMod) watchMyAction();
+    render();
+  }));
+  S.subs.push(S.be.watchCol(`${base}/players`, (list) => {
+    S.players = list.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+    S.playersLoaded = true;
+    render();
+  }));
+  S.subs.push(S.be.watchCol(`${base}/votes`, (list) => { S.votes = list; render(); }));
+  if (isMod) {
+    S.subs.push(S.be.watchCol(`${base}/actions`, (list) => { S.actions = list; processSeer(); render(); }));
+    S.subs.push(S.be.watch(`${base}/secrets/_mod`, (d) => { S.mod = d; render(); }));
+  } else {
+    S.subs.push(S.be.watch(`${base}/secrets/${S.uid}`, (d) => {
+      const had = S.secret?.seer?.[room().round];
+      S.secret = d;
+      if (!had && d?.seer?.[room().round]) SND.play('seer');
+      render();
+    }));
+  }
+  render();
+}
+
+function watchMyAction() {
+  const key = `${room().game}_${room().round}_${S.uid}`;
+  if (key === S.actionKey) return;
+  S.actionSub?.();
+  S.actionKey = key; S.myAction = null;
+  S.actionSub = S.be.watch(`rooms/${S.code}/actions/${key}`, (d) => { S.myAction = d; render(); });
+}
+
+function leave(keepSession = false) {
+  unsubAll();
+  if (!keepSession) store.clear();
+  Object.assign(S, { view: PAGE === 'admin' ? 'adminHome' : 'home', code: null, isMod: false, room: null, players: [] });
+  history.replaceState(null, '', location.pathname);
+  if (PAGE === 'admin') loadLastRoom();
+  render();
+}
+
+function phaseSound(d) {
+  const myTeam = G.ROLES[S.secret?.role]?.team;
+  const fx = {
+    roles: 'join', night: 'howl', day: 'day', vote: 'vote',
+    morning: d.morning?.victim ? 'death' : 'morning',
+    verdict: d.verdict?.out ? 'gong' : 'day',
+    ended: S.isMod ? (d.winner === 'village' ? 'win' : 'lose') : (myTeam === (d.winner === 'village' ? 'village' : 'wolves') ? 'win' : 'lose'),
+  }[d.phase];
+  if (fx) SND.play(fx);
+}
+
+// ═════════════════════════ moderator logic ═════════════════════════
+const P = (rest = '') => `rooms/${S.code}${rest}`;
+// keep a local copy right away so quick back-to-back writes never lose a line
+const logAdd = (text) => {
+  const log = [...(S.mod?.log || []), { t: Date.now(), text }].slice(-80);
+  if (S.mod) S.mod.log = log;
+  return log;
+};
+
+async function guarded(fn) {
+  if (S.busy) return;
+  S.busy = true;
+  try { await fn(); } catch (e) { console.error(e); toast('Something went wrong: ' + e.message); }
+  finally { S.busy = false; render(); }
+}
+
+async function createRoom() {
+  let code;
+  for (let i = 0; i < 6; i++) { code = G.makeCode(); if (!(await S.be.get(`rooms/${code}`))) break; }
+  await S.be.set(`rooms/${code}`, {
+    moderatorUid: S.uid, phase: 'lobby', game: 1, round: 0, createdAt: Date.now(),
+    settings: { wolves: 2, nightSeconds: 45, votesPerPlayer: 1, hunch: false, rumor: false },
+  });
+  await S.be.set(`rooms/${code}/secrets/_mod`, { roles: {}, log: [{ t: Date.now(), text: '🏡 Room created. Waiting for villagers…' }] });
+  enterRoom(code, true);
+}
+
+async function dealRoles() {
+  const r = room(); const ps = S.players; const w = r.settings.wolves;
+  const roles = G.assignRoles(ps.map((p) => p.id), w);
+  const wolves = ps.filter((p) => roles[p.id] === 'werewolf').map((p) => p.id);
+  const ops = [];
+  for (const p of ps) {
+    ops.push({ type: 'set', path: P(`/secrets/${p.id}`), data: { role: roles[p.id], partners: roles[p.id] === 'werewolf' ? wolves.filter((x) => x !== p.id) : [], seer: {} } });
+    ops.push({ type: 'update', path: P(`/players/${p.id}`), data: { alive: true, role: null } });
+  }
+  const names = (role) => ps.filter((p) => roles[p.id] === role).map((p) => esc(p.name)).join(', ');
+  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles, lastProtected: null, seer: {}, log: [
+    { t: Date.now(), text: `🃏 Roles dealt. 🐺 Wolves: <b>${names('werewolf')}</b> · 🛡️ Doctor: <b>${names('doctor') || 'none'}</b> · 🔮 Seer: <b>${names('seer') || 'none'}</b>` }] } });
+  ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null } });
+  await S.be.batch(ops);
+}
+
+async function startNight() {
+  const r = room();
+  const round = r.round + 1;
+  const ops = [{ type: 'update', path: P(), data: { phase: 'night', round, nightEndsAt: Date.now() + (r.settings.nightSeconds || 45) * 1000, morning: null, verdict: null } }];
+  const roles = S.mod?.roles || {};
+  for (const b of S.players.filter((p) => p.bot && p.alive)) {
+    const a = G.botNightAction(b, roles[b.id], S.players, roles, S.mod?.lastProtected);
+    if (a.target) ops.push({ type: 'set', path: P(`/actions/${r.game}_${round}_${b.id}`), data: { game: r.game, round, uid: b.id, ...a, at: Date.now() } });
+  }
+  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(`🌙 Night ${round} begins.`) } });
+  S.resolving = null;
+  await S.be.batch(ops);
+}
+
+async function processSeer() {
+  const r = room();
+  if (!S.isMod || r.phase !== 'night' || !S.mod) return;
+  const roles = S.mod.roles || {};
+  const seerId = Object.keys(roles).find((id) => roles[id] === 'seer');
+  if (!seerId || !pl(seerId)?.alive) return;
+  const key = curKey();
+  if (S.mod.seer?.[key] || S.seerPending === key) return;
+  const a = nowActions().find((x) => x.uid === seerId && x.type === 'inspect' && pl(x.target)?.alive);
+  if (!a) return;
+  S.seerPending = key;
+  if (S.mod) S.mod.seer = { ...(S.mod.seer || {}), [key]: a.target };
+  const isWolf = roles[a.target] === 'werewolf';
+  await S.be.batch([
+    { type: 'update', path: P(`/secrets/${seerId}`), data: { [`seer.${r.round}`]: { target: a.target, isWolf } } },
+    { type: 'update', path: P('/secrets/_mod'), data: { [`seer.${key}`]: a.target, log: logAdd(`🔮 Seer checked <b>${pname(a.target)}</b>: ${isWolf ? 'WEREWOLF' : 'not a werewolf'}.`) } },
+  ]).catch((e) => { S.seerPending = null; console.error(e); });
+}
+
+function revealAllOps(roles, extra = {}) {
+  return S.players.map((p) => ({ type: 'update', path: P(`/players/${p.id}`), data: { role: roles[p.id], ...(extra[p.id] || {}) } }));
+}
+
+async function resolveNightNow() {
+  const r = room();
+  if (r.phase !== 'night' || !S.mod || S.resolving === curKey()) return;
+  S.resolving = curKey();
+  try {
+    await processSeer();
+    const roles = S.mod.roles || {};
+    const res = G.resolveNight({ players: S.players, roles, actions: nowActions(), lastProtected: S.mod.lastProtected });
+    const after = S.players.map((p) => (p.id === res.victim ? { ...p, alive: false } : p));
+    const winner = G.checkWinner(after, roles);
+    const doctorId = Object.keys(roles).find((id) => roles[id] === 'doctor');
+    const picks = [...new Set(res.wolfPicks)];
+    let text = `☀️ Night ${r.round}: wolves picked ${picks.length ? picks.map(pname).map((n) => `<b>${n}</b>`).join(' & ') : 'nobody'}`;
+    if (picks.length > 1) text += ` (the moon chose <b>${pname(res.attacked)}</b>)`;
+    text += res.protectedId ? `. Doctor protected <b>${pname(res.protectedId)}</b>.` : '. Doctor protected nobody.';
+    text += res.saved ? ' 🛡️ SAVED!' : res.victim ? ` 💀 <b>${pname(res.victim)}</b> died.` : '';
+
+    const ops = [];
+    // optional clues for the village
+    const st = r.settings || {};
+    const hunch = st.hunch && !winner ? G.villageHunch(nowActions(), after) : null;
+    const rumor = st.rumor && !winner ? G.makeRumor(after, roles) : null;
+    if (hunch) text += ` 🤔 Hunch: ${hunch.ids.map(pname).join(' & ')} (${hunch.count}/${hunch.total}).`;
+    if (rumor) {
+      ops.push({ type: 'update', path: P(`/secrets/${rumor.to}`), data: { [`rumor.${r.round}`]: rumor.ids } });
+      text += ` 🗝️ Rumor to <b>${pname(rumor.to)}</b>: one of ${rumor.ids.map(pname).join(', ')}.`;
+    }
+    if (res.victim) ops.push({ type: 'update', path: P(`/players/${res.victim}`), data: { alive: false, role: roles[res.victim] } });
+    if (doctorId) ops.push({ type: 'update', path: P(`/secrets/${doctorId}`), data: { lastProtected: res.protectedId } });
+    if (winner) ops.push(...revealAllOps(roles, res.victim ? { [res.victim]: { alive: false } } : {}));
+    S.mod.lastProtected = res.protectedId;
+    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: res.protectedId, log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
+    ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null } });
+    await S.be.batch(ops);
+  } catch (e) {
+    S.resolving = null;
+    console.error(e); toast('Could not end the night: ' + e.message);
+  }
+}
+
+async function openVote() {
+  const r = room(); const roles = S.mod?.roles || {};
+  const ops = [{ type: 'update', path: P(), data: { phase: 'vote' } }];
+  for (const b of S.players.filter((p) => p.bot && p.alive)) {
+    const targets = G.botVote(b, roles[b.id], S.players, roles, votesEach());
+    if (targets.length) ops.push({ type: 'set', path: P(`/votes/${r.game}_${r.round}_${b.id}`), data: { game: r.game, round: r.round, uid: b.id, targets } });
+  }
+  await S.be.batch(ops);
+}
+
+async function closeVote() {
+  const r = room(); const roles = S.mod?.roles || {};
+  const t = G.tallyVotes(nowVotes(), S.players);
+  const after = S.players.map((p) => (p.id === t.out ? { ...p, alive: false } : p));
+  const winner = G.checkWinner(after, roles);
+  const tally = Object.entries(t.counts).map(([id, c]) => `${pname(id)} ${c}`).join(', ') || 'no votes';
+  const text = `🗳️ Day ${r.round} vote (${tally}): ${t.out ? `<b>${pname(t.out)}</b> voted out. They were a ${G.ROLES[roles[t.out]].name}.` : t.tie ? 'tie, nobody out.' : 'nobody voted.'}`;
+  const ops = [];
+  if (t.out) ops.push({ type: 'update', path: P(`/players/${t.out}`), data: { alive: false, role: roles[t.out] } });
+  if (winner) ops.push(...revealAllOps(roles, t.out ? { [t.out]: { alive: false } } : {}));
+  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
+  ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'verdict', verdict: { out: t.out, tie: t.tie, noVotes: !!t.noVotes, round: r.round }, winner: winner || null } });
+  await S.be.batch(ops);
+}
+
+async function playAgain() {
+  const r = room();
+  const ops = S.players.map((p) => ({ type: 'update', path: P(`/players/${p.id}`), data: { alive: true, role: null } }));
+  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles: {}, seer: {}, lastProtected: null, log: [{ t: Date.now(), text: `🔁 New game #${r.game + 1}. Same villagers, new secrets!` }] } });
+  ops.push({ type: 'update', path: P(), data: { phase: 'lobby', game: r.game + 1, round: 0, morning: null, verdict: null, winner: null } });
+  await S.be.batch(ops);
+}
+
+const BOT_NAMES = ['Bonnie', 'Barnaby', 'Clover', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hazel', 'Iggy', 'Juniper', 'Kip', 'Luna'];
+async function addBot() {
+  const usedNames = new Set(S.players.map((p) => p.name));
+  const name = 'Bot ' + (BOT_NAMES.find((n) => !usedNames.has('Bot ' + n)) || Math.floor(Math.random() * 99));
+  const taken = new Set(S.players.map((p) => p.avatar));
+  const free = AVATARS.map((_, i) => i).filter((i) => !taken.has(i));
+  const avatar = free.length ? free[Math.floor(Math.random() * free.length)] : Math.floor(Math.random() * AVATARS.length);
+  const id = 'bot_' + Math.random().toString(36).slice(2, 8);
+  await S.be.set(P(`/players/${id}`), { name, avatar, alive: true, joinedAt: Date.now(), bot: true });
+}
+
+// ═════════════════════════ player actions ═════════════════════════
+async function joinGame() {
+  const code = S.ui.code.trim().toUpperCase();
+  const name = S.ui.name.trim();
+  if (code.length !== 5) return toast('Room codes have 5 letters 🔤');
+  if (!name) return toast('Tell the village your name! ✏️');
+  const r = await S.be.get(`rooms/${code}`);
+  if (!r) return toast("Can't find that room. Check the code 🔍");
+  if (r.moderatorUid === S.uid) return toast('This device is the moderator of that game. Use another phone to play! 📱');
+  const existing = await S.be.get(`rooms/${code}/players/${S.uid}`);
+  if (existing) return enterRoom(code, false);
+  if (r.phase !== 'lobby') return toast('That game already started. Wait for the next one! ⏳');
+  await S.be.set(`rooms/${code}/players/${S.uid}`, { name, avatar: S.ui.avatar ?? 0, alive: true, joinedAt: Date.now() });
+  SND.play('join');
+  enterRoom(code, false);
+}
+
+async function pickTarget(id) {
+  const r = room(); const m = me();
+  if (!m?.alive) return;
+  if (r.phase === 'night') {
+    const role = S.secret?.role;
+    if (role === 'seer' && S.secret?.seer?.[r.round]) return;
+    if (role === 'seer' && S.myAction?.target) return; // waiting for vision
+    const key = `${r.game}_${r.round}_${S.uid}`;
+    S.myAction = { target: id }; render();
+    SND.play('select');
+    await S.be.set(P(`/actions/${key}`), { game: r.game, round: r.round, uid: S.uid, type: G.actionTypeFor(role), target: id, at: Date.now() });
+    navigator.vibrate?.(30);
+  } else if (r.phase === 'vote') {
+    const n = votesEach();
+    let mine = myVotes();
+    if (mine.includes(id)) { mine = mine.filter((x) => x !== id); SND.play('unselect'); }
+    else if (n === 1) { mine = [id]; SND.play('cast'); }
+    else if (mine.length >= n) { SND.play('tick'); return toast(`You've used all ${n} votes. Tap someone to take a vote back.`); }
+    else { mine = [...mine, id]; SND.play('cast'); }
+    await S.be.set(P(`/votes/${r.game}_${r.round}_${S.uid}`), { game: r.game, round: r.round, uid: S.uid, targets: mine });
+    navigator.vibrate?.(30);
+  }
+}
+
+// ═════════════════════════ events ═════════════════════════
+const ACT = {
+  goJoin: () => { S.view = 'join'; render(); watchJoinRoom(); },
+  home: () => { S.joinSub?.(); S.joinSub = null; S.view = 'home'; render(); },
+  reload: () => location.reload(),
+  create: () => guarded(createRoom),
+  join: () => guarded(joinGame),
+  pickAv: (d) => { S.ui.avatar = +d.i; drawAvGrid(); },
+  leave: async () => {
+    if (S.isMod) return leave(true);
+    if (room().phase === 'lobby' && me()) { try { await S.be.del(P(`/players/${S.uid}`)); } catch {} }
+    leave();
+  },
+  flip: () => { S.ui.flipped = !S.ui.flipped; SND.play('flip'); render(); },
+  sound: () => {
+    const m = SND.cycleMode();
+    toast({ all: '🎵 Music & sounds on', sfx: '🔔 Sound effects only', off: '🔇 Muted' }[m]);
+    render();
+  },
+  showSetup: () => { S.view = 'adminSetup'; render(); },
+  adminSetup: () => guarded(adminSetup),
+  adminLogin: () => guarded(adminLogin),
+  resume: () => S.lastRoom && enterRoom(S.lastRoom.code, true),
+  copyLink: async () => { await copy(playerLink()); toast('Player link copied! 🔗'); },
+  pickIcon: (d) => { S.ui.draft.icon = ICON_CHOICES[+d.i]; render(); },
+  resetBrand: () => { S.ui.draft = JSON.parse(JSON.stringify(DEFAULT_BRAND)); render(); },
+  saveBrand: () => guarded(saveBrand),
+  changePin: () => guarded(async () => {
+    const pin = S.ui.newPin.trim();
+    if (pin.length < 4) return toast('Use at least 4 characters 🔢');
+    await S.be.update('app/secret', { pin });
+    S.ui.newPin = ''; toast('PIN changed 🔐');
+  }),
+  lockDevice: () => guarded(async () => {
+    await S.be.del(`admins/${S.uid}`);
+    store.clear(); S.view = 'adminLogin';
+  }),
+  vpp: (d) => {
+    const v = Math.min(3, Math.max(1, (room().settings?.votesPerPlayer ?? 1) + +d.d));
+    guarded(() => S.be.update(P(), { 'settings.votesPerPlayer': v }));
+  },
+  peek: () => { S.ui.sheet = 'role'; render(); },
+  closeSheet: () => {
+    const bg = document.querySelector('.sheet-bg');
+    if (!bg || bg.classList.contains('closing')) return;
+    bg.classList.add('closing');                   // exit is faster than enter (200ms vs 380ms)
+    setTimeout(() => { S.ui.sheet = null; render(); }, 200);
+  },
+  pick: (d) => pickTarget(d.id).catch((e) => toast(e.message)),
+  copyInvite: async () => {
+    await copy(`🐺 Join our Werewolf game in Moonhollow!\n1) Open ${inviteLink()} on your phone\n2) Room code: ${S.code}`);
+    toast('Invite copied! Paste it in the Teams chat 💌');
+  },
+  openTab: () => window.open(inviteLink(), '_blank'),
+  addBot: () => guarded(addBot),
+  kick: (d) => guarded(() => S.be.del(P(`/players/${d.id}`))),
+  wolves: (d) => {
+    const n = S.players.length;
+    const w = Math.min(4, Math.max(1, (room().settings?.wolves ?? 2) + +d.d));
+    if (w > G.maxWolves(n) && +d.d > 0 && n >= G.MIN_PLAYERS) toast(`Max ${G.maxWolves(n)} werewolves for ${n} players`);
+    guarded(() => S.be.update(P(), { 'settings.wolves': w }));
+  },
+  nightSecs: (d) => guarded(() => S.be.update(P(), { 'settings.nightSeconds': +d.s })),
+  toggleSetting: (d) => guarded(() => S.be.update(P(), { [`settings.${d.k}`]: !room().settings?.[d.k] })),
+  deal: () => guarded(dealRoles),
+  night: () => guarded(startNight),
+  endNight: () => guarded(resolveNightNow),
+  day: () => guarded(() => S.be.update(P(), { phase: 'day' })),
+  openVote: () => guarded(openVote),
+  closeVote: () => guarded(closeVote),
+  again: () => guarded(playAgain),
+};
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  const fn = ACT[el.dataset.act];
+  if (!['pick', 'flip', 'sound', 'pickAv', 'closeSheet'].includes(el.dataset.act)) SND.play('tap');
+  if (el.dataset.act === 'pickAv') SND.play('select');
+  if (fn) { e.preventDefault(); fn(el.dataset, el); }
+});
+document.addEventListener('input', (e) => {
+  const k = e.target.dataset?.bind;
+  if (!k) return;
+  if (k.startsWith('brand.')) {
+    S.ui.draft[k.slice(6)] = e.target.value;
+    drawBrandPreview();
+    return;
+  }
+  if (k === 'code') {
+    const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    e.target.value = v; S.ui.code = v; watchJoinRoom();
+  } else S.ui[k] = e.target.value;
+});
+document.addEventListener('change', async (e) => {
+  if (e.target.dataset?.file !== 'icon' || !e.target.files?.[0]) return;
+  try {
+    S.ui.draft.icon = { type: 'image', data: await fileToIcon(e.target.files[0]) };
+    render();
+  } catch { toast("Couldn't read that picture 🖼️"); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('input')) {
+    if (S.view === 'join') ACT.join();
+    if (S.view === 'adminLogin') ACT.adminLogin();
+    if (S.view === 'adminSetup') ACT.adminSetup();
+  }
+});
+
+// ═════════════════════════ boot ═════════════════════════
+async function boot() {
+  render();
+  try {
+    if (firebaseConfig && firebaseConfig.apiKey) {
+      const { createFirebaseBackend } = await import('./backend-firebase.js');
+      S.be = await createFirebaseBackend(firebaseConfig);
+    } else {
+      S.be = createLocalBackend();
+    }
+    S.uid = await S.be.init();
+  } catch (e) {
+    console.error(e);
+    S.error = 'Could not connect to the game server. Check your internet, or the Firebase settings in js/config.js. (' + e.message + ')';
+    S.view = 'error'; return render();
+  }
+
+  // the app's name & icon (set by the admin) — live for everyone
+  await new Promise((resolve) => {
+    let first = true;
+    S.subs0 = S.be.watch('app/branding', (d) => {
+      S.brandLoaded = !!d;
+      S.brand = { ...DEFAULT_BRAND, ...(d || {}) };
+      applyBrand();
+      render();
+      if (first) { first = false; resolve(); }
+    });
+    setTimeout(resolve, 2500);
+  });
+
+  const sess = store.get();
+  if (PAGE === 'admin') {
+    let isAdmin = false;
+    try { isAdmin = !!(await S.be.get(`admins/${S.uid}`)); } catch {}
+    if (!isAdmin) { S.view = S.brandLoaded ? 'adminLogin' : 'adminSetup'; return render(); }
+    if (sess?.code) {
+      try {
+        const r = await S.be.get(`rooms/${sess.code}`);
+        if (r && r.moderatorUid === S.uid && r.phase !== 'ended') return enterRoom(sess.code, true);
+      } catch {}
+    }
+    S.view = 'adminHome';
+    render();
+    return loadLastRoom();
+  }
+
+  S.ui.code = (new URLSearchParams(location.search).get('room') || '').toUpperCase().slice(0, 5);
+  if (sess?.code) {
+    try {
+      const r = await S.be.get(`rooms/${sess.code}`);
+      if (r && (await S.be.get(`rooms/${sess.code}/players/${S.uid}`))) return enterRoom(sess.code, false);
+    } catch {}
+    store.clear();
+  }
+  S.view = S.ui.code ? 'join' : 'home';
+  render();
+  if (S.view === 'join') watchJoinRoom();
+}
+boot();

@@ -1,0 +1,93 @@
+rules_version = '2';
+
+// Moonhollow Werewolf — security rules
+// Paste this into Firebase console → Firestore Database → Rules → Publish.
+//
+// The big idea: players can only ever read THEIR OWN role and night choice.
+// The moderator (who created the room) can read and write everything.
+// Only admins (people who typed the admin PIN on admin.html) can create games
+// or change the app's name & icon.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function room(code) { return get(/databases/$(database)/documents/rooms/$(code)).data; }
+    function isMod(code) { return signedIn() && room(code).moderatorUid == request.auth.uid; }
+    function secretPin() { return get(/databases/$(database)/documents/app/secret).data.pin; }
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+
+    // App name & icon: everyone can read, only admins can change.
+    match /app/branding {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // The admin PIN. Nobody can ever read it. The very first visitor to admin.html sets it.
+    match /app/secret {
+      allow read: if false;
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/app/secret)
+        && request.resource.data.keys().hasOnly(['pin'])
+        && request.resource.data.pin is string && request.resource.data.pin.size() >= 4;
+      allow update: if isAdmin() && request.resource.data.pin is string && request.resource.data.pin.size() >= 4;
+      allow delete: if false;
+    }
+
+    // A device becomes an admin by proving it knows the PIN.
+    match /admins/{uid} {
+      allow read: if signedIn() && uid == request.auth.uid;
+      allow create: if signedIn() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['pin', 'at'])
+        && request.resource.data.pin == secretPin();
+      allow delete: if signedIn() && uid == request.auth.uid;
+      allow update: if false;
+    }
+
+    match /rooms/{code} {
+      allow read: if signedIn();
+      allow create: if isAdmin() && request.resource.data.moderatorUid == request.auth.uid;
+      allow update, delete: if isMod(code);
+
+      // Public player list (name, avatar, alive). Role is only added when someone dies or the game ends.
+      match /players/{pid} {
+        allow read: if signedIn();
+        allow create: if isMod(code)
+          || (signedIn() && pid == request.auth.uid
+              && room(code).phase == 'lobby'
+              && request.resource.data.keys().hasOnly(['name', 'avatar', 'alive', 'joinedAt'])
+              && request.resource.data.alive == true);
+        allow update: if isMod(code)
+          || (signedIn() && pid == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar']));
+        allow delete: if isMod(code) || (signedIn() && pid == request.auth.uid);
+      }
+
+      // Secret role cards: only that player (and the moderator) can read.
+      match /secrets/{pid} {
+        allow read: if isMod(code) || (signedIn() && pid == request.auth.uid);
+        allow write: if isMod(code);
+      }
+
+      // Night choices: doc id is "<game>_<round>_<uid>". Only you + moderator can see yours.
+      match /actions/{aid} {
+        allow read: if isMod(code) || (signedIn() && aid.matches('.*_' + request.auth.uid));
+        allow create, update: if isMod(code)
+          || (signedIn() && request.resource.data.uid == request.auth.uid
+              && aid.matches('.*_' + request.auth.uid)
+              && room(code).phase == 'night');
+        allow delete: if isMod(code);
+      }
+
+      // Day votes are public (everyone sees the live count).
+      match /votes/{vid} {
+        allow read: if signedIn();
+        allow create, update: if isMod(code)
+          || (signedIn() && request.resource.data.uid == request.auth.uid
+              && vid.matches('.*_' + request.auth.uid)
+              && room(code).phase == 'vote');
+        allow delete: if isMod(code);
+      }
+    }
+  }
+}
