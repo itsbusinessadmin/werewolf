@@ -1,3 +1,110 @@
-# Werewolf
+# 🐺 Moonhollow Werewolf
 
-An online Werewolf game for Microsoft Teams meetings.
+A cute online Werewolf game to play during **Microsoft Teams** meetings.
+Players talk on Teams. Secret roles, night choices and votes happen on their **phones**.
+
+- **Two links:**
+  - `https://…/` is the **player link**. It only has **Join a game**. Share it with everyone.
+  - `https://…/admin.html` is the **admin link**, protected by a PIN. Keep it to yourself.
+- **Moderator** (doesn't play): creates the room, deals roles and runs the game from a dashboard.
+- **Players**: join with a 5-letter room code and their name. No accounts.
+- **Admin can change the app's name, title, tagline and icon** (pick a character or upload a picture).
+- **Music & sound effects**: spooky night music, cheerful day music, a wolf howl, morning bells, a verdict gong and win fanfares. Every phone has a 🔊 button that switches between *music + sounds → sounds only → muted*.
+- **Free to host**: Firebase (database) + GitHub Pages (website).
+
+---
+
+## Try it first (no setup)
+
+While `js/config.js` is empty, the app runs in **demo mode**: every browser tab is a separate player.
+
+1. In this folder run `python3 -m http.server 8000` (or use the "Live Server" add-on in VS Code).
+2. Open `http://localhost:8000/admin.html`, create an admin PIN and click **Create a new game**.
+3. Click **Open player tab** a few times to add players, or **Add test bot**.
+4. Play through a whole game.
+
+---
+
+## Put it online (about 15 minutes)
+
+### 1. Create the Firebase project (free)
+1. Go to <https://console.firebase.google.com> and click **Create a project**. Google Analytics isn't needed.
+2. **Build → Authentication → Get started → Sign-in method →** turn on **Anonymous**.
+3. **Build → Firestore Database → Create database**. Pick a location near you and choose **production mode**.
+4. In Firestore, open the **Rules** tab. Paste in the whole `firestore.rules` file from this folder and click **Publish**.
+   These rules stop players from peeking at other people's roles.
+5. Click **Project settings (⚙️) → General → Your apps → `</>` Web**, register an app (no hosting needed), then copy the `firebaseConfig` values.
+6. Paste them into **`js/config.js`**.
+
+### 2. Host it on GitHub Pages (free)
+1. Create a new **public** repository on GitHub, for example `werewolf`.
+2. Upload every file in this folder: **Add file → Upload files**, drag everything in, then **Commit**.
+3. **Settings → Pages →** Source: *Deploy from a branch*, Branch: `main` / `(root)` → **Save**.
+4. After a minute, your game is live at `https://YOUR-USERNAME.github.io/werewolf/`.
+5. Back in Firebase: **Authentication → Settings → Authorized domains → Add domain →** `YOUR-USERNAME.github.io`.
+
+> The Firebase web config is **meant** to be public. Your data is protected by the rules from step 1.4, not by hiding the key.
+
+---
+
+## Running a game in Teams
+
+1. The moderator opens **admin.html** on a **laptop**. The first visitor ever creates the admin PIN; later devices type it once. Then click **Create a new game**.
+2. Click **Copy invite for Teams** and paste it into the meeting chat.
+3. Players open the link on their **phones**, type their name and pick a villager.
+4. The moderator picks the number of werewolves, the **votes per player**, the night timer and any **extra clues** (Village hunch, Rumors), then clicks **Deal secret roles**.
+5. Follow the big button and read the 🎙️ script lines out loud:
+   **Night** (everyone mutes and turns their camera off) → **Morning** → **Debate** (unmute on Teams) → **Vote** → **Verdict** → next night…
+6. ⚠️ The moderator must **not share their screen**, because it shows every role. Keep the moderator tab open: it runs the game.
+
+### The rules this app uses
+| Rule | Setting |
+|---|---|
+| Werewolves | Moderator picks 1–4 (the app suggests a number) |
+| Wolves pick different victims | The app picks one of their choices at random 🎲 |
+| Doctor | Can protect themselves, but not the same person 2 nights in a row |
+| Seer | One peek per night, learns "werewolf" or "not a werewolf" |
+| Villagers at night | Tap a "suspect", so nobody can tell who has powers |
+| Death | The player's role is revealed to everyone |
+| Votes per player | Moderator picks 1–3 (in the lobby, or before each vote). Each vote must go to a different person. |
+| Tied vote | Nobody is out |
+| 🤔 Village hunch (optional switch) | Each morning everyone sees who got the most "Who do you suspect?" taps last night (anonymous count) |
+| 🗝️ Rumors (optional switch) | Each morning one random living villager privately hears a true clue: "One of these 3 is a werewolf." Exactly one of the three is a wolf, and the listener is never in the list |
+| Village wins | When every werewolf is gone |
+| Wolves win | When there are as many wolves as other players |
+
+---
+
+## Files
+
+```
+index.html            the page
+css/style.css         all the styling (night 🌙 / day ☀️ themes)
+admin.html            the admin / moderator page (separate link)
+js/app.js             screens + game flow (admin, moderator & player)
+js/sound.js           generated background music + sound effects
+js/game.js            pure rules: dealing roles, night results, votes, winner
+js/art.js             every character and icon, drawn in code (SVG)
+js/backend-firebase.js  online mode (Firebase)
+js/backend-local.js   demo mode (browser tabs)
+js/config.js          ← paste your Firebase settings here
+firestore.rules       ← paste into Firebase → Firestore → Rules
+assets/png/           PNG versions of all characters (512×512)
+assets/svg/           SVG versions of all characters
+tools/export-png.mjs  re-exports the PNGs after you change art.js
+```
+
+### Admin page (admin.html)
+- **Start a game** / **Resume game**
+- **Player link** with a copy button
+- **App look**: name, small title, tagline and icon (12 characters, or **Upload** your own picture, which is cropped to a circle automatically). Click **Save look** and every player's page updates instantly, including the browser-tab icon.
+- **Security**: change the PIN, or sign this device out of admin.
+- Forgot the PIN? In Firebase → Firestore, delete the `app/secret` document, then open admin.html again to create a new one.
+
+### Sound
+All music and effects are generated live in the browser with the Web Audio API, so there are no audio files and nothing to license. Phones only play sound after the first tap (browser rule). Players should probably keep it on **sounds only** while talking on Teams.
+
+### Customising
+- **Add or change villagers:** edit the `AVATARS` list in `js/art.js`. Each one is a mix of hair, hat, eyes, mouth, shirt colour and so on.
+- **Change role descriptions:** edit `ROLES` in `js/game.js`.
+- **Change colours:** edit the variables at the top of `css/style.css`.
