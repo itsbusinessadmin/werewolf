@@ -204,7 +204,7 @@ function draw() {
   else if (S.view === 'adminHome') { html = viewAdminHome(); theme = 'day'; }
   else if (S.view === 'game') {
     const ph = room().phase;
-    theme = ['morning', 'day', 'vote', 'verdict'].includes(ph) ? 'day' : ph === 'ended' ? (room().winner === 'village' ? 'day' : 'night') : 'night';
+    theme = ['morning', 'day', 'vote', 'verdict'].includes(ph) ? 'day' : ph === 'ended' ? (room().winner === 'wolves' ? 'night' : 'day') : 'night';
     if (S.isMod) theme = 'day';
     html = S.isMod ? viewMod() : viewPlayer();
   }
@@ -213,7 +213,7 @@ function draw() {
   // background music follows the game: spooky at night, cheerful by day
   const ph = room().phase;
   SND.music(S.view === 'game'
-    ? (['morning', 'day', 'vote', 'verdict'].includes(ph) || (ph === 'ended' && room().winner === 'village') ? 'day' : 'night')
+    ? (['morning', 'day', 'vote', 'verdict'].includes(ph) || (ph === 'ended' && room().winner !== 'wolves') ? 'day' : 'night')
     : PAGE === 'admin' ? null : 'night');
   // play the pop-in animation only when the screen actually changes (not on every vote/update)
   const screen = `${S.view}|${S.isMod}|${room().phase}|${room().round}`;
@@ -370,7 +370,7 @@ function roleBack(role) {
   const partners = (S.secret?.partners || []).map(pname);
   return `<div class="stack" style="--rc:${R.color}">
     <div class="art anim">${ROLE_SVG[role]}</div>
-    <div><span class="teampill" style="--rc:${role === 'werewolf' ? R.color : '#3DBF95'}">${R.team === 'wolves' ? 'Team Wolves' : 'Team Village'}</span></div>
+    <div><span class="teampill" style="--rc:${R.team === 'village' ? '#3DBF95' : R.color}">${R.team === 'wolves' ? 'Team Wolves' : R.team === 'jester' ? 'On your own' : 'Team Village'}</span></div>
     <div class="rolename" style="--rc:${R.color}">${R.name}</div>
     <p class="muted">${R.blurb}</p>
     ${role === 'werewolf' ? `<p><b>${partners.length ? `Your pack: ${partners.join(', ')}` : 'You are the lone wolf!'}</b></p>` : ''}
@@ -546,6 +546,14 @@ function pVerdict() {
 
 function winHero() {
   const w = room().winner;
+  if (w === 'jester') {
+    const j = S.players.find((p) => p.role === 'jester' || roleOf(p.id) === 'jester');
+    return `<div class="card win stack">
+    <div class="art anim">${ROLE_SVG.jester}</div>
+    <h1 style="font-size:36px">${j ? `${esc(j.name)} the Jester wins` : 'The Jester wins'}</h1>
+    <p class="muted">${j?.id === S.uid ? 'You tricked the whole village into voting you out. Take a bow!' : 'The village voted out the Jester, which was exactly their plan. Everyone else loses!'}</p>
+  </div>`;
+  }
   return `<div class="card win stack">
     <div class="art anim">${w === 'wolves' ? ROLE_SVG.werewolf : ROLE_SVG.villager}</div>
     <h1 style="font-size:36px">${w === 'wolves' ? 'The werewolves win' : 'The village wins'}</h1>
@@ -660,16 +668,19 @@ function script(t) { return `<div class="script">${t}</div>`; }
 
 // how many of each special role the moderator chose (everyone else = villager)
 function roleCounts(st = room().settings || {}) {
-  return { werewolf: st.wolves ?? 2, doctor: st.doctors ?? 1, seer: st.seers ?? 1 };
+  return { werewolf: st.wolves ?? 2, doctor: st.doctors ?? 1, seer: st.seers ?? 1, jester: st.jesters ?? 0 };
 }
+// everyone who isn't a plain villager
+const specialCount = (c) => c.werewolf + c.doctor + c.seer + (c.jester || 0);
+const WIN_LOG = { wolves: 'Werewolves win.', village: 'Village wins.', jester: 'The Jester wins!' };
 // optional: the moderator plans the player count in advance (null = use whoever joined)
 const planned = (st = room().settings || {}) => (Number.isInteger(st.plannedPlayers) ? st.plannedPlayers : null);
 const planN = () => planned() ?? S.players.length;
 
 function roleSummary(c, n) {
-  const v = Math.max(0, n - c.werewolf - c.doctor - c.seer);
+  const v = Math.max(0, n - specialCount(c));
   const part = (k, one, many, x) => (x ? `${x} ${x === 1 ? one : many}` : '');
-  return [part('w', 'werewolf', 'werewolves', c.werewolf), part('d', 'doctor', 'doctors', c.doctor), part('s', 'seer', 'seers', c.seer), part('v', 'villager', 'villagers', v)].filter(Boolean).join(' · ');
+  return [part('w', 'werewolf', 'werewolves', c.werewolf), part('d', 'doctor', 'doctors', c.doctor), part('s', 'seer', 'seers', c.seer), part('j', 'jester', 'jesters', c.jester), part('v', 'villager', 'villagers', v)].filter(Boolean).join(' · ');
 }
 function roleStepper(key, label, value, color, art) {
   return `<div class="rolestep" style="--rc:${color}">
@@ -727,8 +738,8 @@ function modControl() {
         }
       }
       const sug = G.suggestRoles(N);
-      const isSug = sug.werewolf === c.werewolf && sug.doctor === c.doctor && sug.seer === c.seer;
-      const villagers = Math.max(0, N - c.werewolf - c.doctor - c.seer);
+      const isSug = sug.werewolf === c.werewolf && sug.doctor === c.doctor && sug.seer === c.seer && sug.jester === c.jester;
+      const villagers = Math.max(0, N - specialCount(c));
       return `
         <h2>Set up the game</h2>
         ${toggle('plan', 'Plan the player count', 'Set how many players you expect, so you can plan exactly how many villagers, doctors, seers and werewolves before anyone joins. The game waits until everyone is in.', !!plan)}
@@ -744,6 +755,7 @@ function modControl() {
             ${roleStepper('wolves', 'Werewolves', c.werewolf, G.ROLES.werewolf.color, ROLE_SVG.werewolf)}
             ${roleStepper('doctors', 'Doctors', c.doctor, G.ROLES.doctor.color, ROLE_SVG.doctor)}
             ${roleStepper('seers', 'Seers', c.seer, G.ROLES.seer.color, ROLE_SVG.seer)}
+            ${roleStepper('jesters', 'Jester', c.jester, G.ROLES.jester.color, ROLE_SVG.jester)}
             ${plan ? roleStepper('villagers', 'Villagers', villagers, G.ROLES.villager.color, ROLE_SVG.villager)
                    : `<div class="rolestep auto" style="--rc:${G.ROLES.villager.color}">
               <div class="rs-art">${ROLE_SVG.villager}</div>
@@ -1211,7 +1223,7 @@ function phaseSound(d) {
     roles: 'join', night: 'howl', day: 'day', vote: 'vote',
     morning: d.morning?.victim ? 'death' : 'morning',
     verdict: d.verdict?.out ? 'gong' : 'day',
-    ended: S.isMod ? (d.winner === 'village' ? 'win' : 'lose') : (myTeam === (d.winner === 'village' ? 'village' : 'wolves') ? 'win' : 'lose'),
+    ended: S.isMod ? (d.winner === 'village' ? 'win' : 'lose') : (myTeam === d.winner ? 'win' : 'lose'),
   }[d.phase];
   if (fx) SND.play(fx);
 }
@@ -1370,7 +1382,7 @@ async function resolveNightNow() {
     }
     if (winner) ops.push(...revealAllOps(roles, Object.fromEntries(res.victims.map((id) => [id, { alive: false }]))));
     S.mod.lastProtected = newLast;
-    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` ${winner === 'wolves' ? 'Werewolves' : 'Village'} win.` : '')) } });
+    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` ${WIN_LOG[winner]}` : '')) } });
     ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, victims: res.victims, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null, phaseEndsAt: winner ? null : endsFor('morning'), pausedLeft: null } });
     await S.be.batch(ops);
   } catch (e) {
@@ -1397,13 +1409,13 @@ async function closeVote() {
   const r = room(); const roles = S.mod?.roles || {};
   const t = G.tallyVotes(nowVotes(), S.players);
   const after = S.players.map((p) => (p.id === t.out ? { ...p, alive: false } : p));
-  const winner = G.checkWinner(after, roles);
+  const winner = G.jesterVotedOut(t.out, roles) ? 'jester' : G.checkWinner(after, roles);
   const tally = Object.entries(t.counts).map(([id, c]) => `${pname(id)} ${c}`).join(', ') || 'no votes';
   const text = `Day ${r.round} vote (${tally}): ${t.out ? `<b>${pname(t.out)}</b> voted out. They were a ${G.ROLES[roles[t.out]].name}.` : t.tie ? 'tie, nobody out.' : 'nobody voted.'}`;
   const ops = [];
   if (t.out) ops.push({ type: 'update', path: P(`/players/${t.out}`), data: { alive: false, role: roles[t.out] } });
   if (winner) ops.push(...revealAllOps(roles, t.out ? { [t.out]: { alive: false } } : {}));
-  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(text + (winner ? ` ${winner === 'wolves' ? 'Werewolves' : 'Village'} win.` : '')) } });
+  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(text + (winner ? ` ${WIN_LOG[winner]}` : '')) } });
   ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'verdict', verdict: { out: t.out, tie: t.tie, noVotes: !!t.noVotes, round: r.round }, winner: winner || null, phaseEndsAt: winner ? null : endsFor('verdict'), pausedLeft: null } });
   await S.be.batch(ops);
 }
@@ -1564,30 +1576,30 @@ const ACT = {
   togglePlan: () => {
     if (planned()) return guarded(() => S.be.update(P(), { 'settings.plannedPlayers': null }));
     const c = roleCounts();
-    const start = Math.max(S.players.length, G.MIN_PLAYERS, c.werewolf * 2 + c.doctor + c.seer, 8);
+    const start = Math.max(S.players.length, G.MIN_PLAYERS, specialCount(c) + c.werewolf, 8);
     guarded(() => S.be.update(P(), { 'settings.plannedPlayers': Math.min(30, start) }));
   },
   planned: (d) => {
     const c = roleCounts();
-    const minN = Math.max(G.MIN_PLAYERS, c.werewolf + c.doctor + c.seer);
+    const minN = Math.max(G.MIN_PLAYERS, specialCount(c));
     const next = Math.min(30, Math.max(minN, planN() + +d.d));
     if (next === planN()) return toast(+d.d < 0 ? `Can't go below ${minN}: lower a role first` : 'Max 30 players');
     guarded(() => S.be.update(P(), { 'settings.plannedPlayers': next }));
   },
   roleCount: (d) => {
-    const key = d.k;                                           // wolves | doctors | seers | villagers
+    const key = d.k;                                           // wolves | doctors | seers | jesters | villagers
     if (key === 'villagers') return ACT.planned(d);            // villagers = expected players − special roles
     const cur = roleCounts();
-    const now = { wolves: cur.werewolf, doctors: cur.doctor, seers: cur.seer }[key];
+    const now = { wolves: cur.werewolf, doctors: cur.doctor, seers: cur.seer, jesters: cur.jester }[key];
     const min = key === 'wolves' ? 1 : 0;
-    const max = key === 'wolves' ? 6 : 3;
+    const max = key === 'wolves' ? 6 : key === 'jesters' ? 1 : 3;
     const next = Math.min(max, Math.max(min, now + +d.d));
     if (next === now) return toast(next === min ? (key === 'wolves' ? 'You need at least 1 werewolf' : 'Already at 0') : `Max ${max} here`);
     guarded(() => S.be.update(P(), { [`settings.${key}`]: next }));
   },
   suggestRoles: () => {
     const s = G.suggestRoles(planN());
-    guarded(() => S.be.update(P(), { 'settings.wolves': s.werewolf, 'settings.doctors': s.doctor, 'settings.seers': s.seer }));
+    guarded(() => S.be.update(P(), { 'settings.wolves': s.werewolf, 'settings.doctors': s.doctor, 'settings.seers': s.seer, 'settings.jesters': s.jester }));
   },
   reshuffle: () => guarded(async () => {
     await dealRoles();

@@ -94,6 +94,12 @@ function hat(kind) {
     case 'doc':
       return `<path d="M36 41 L40 21 C52 17 68 17 80 21 L84 41 C70 37 50 37 36 41Z" ${st('#FFFFFF')}/>
         <path d="M60 23 v12 M54 29 h12" stroke="#F0506E" stroke-width="4.2" stroke-linecap="round"/>`;
+    case 'jester':
+      return `<path d="M33 45 C31 28 22 18 9 17 C24 6 50 14 60 36 C49 36 40 39 33 45Z" ${st('#E5566E')}/>
+        <path d="M87 45 C89 28 98 18 111 17 C96 6 70 14 60 36 C71 36 80 39 87 45Z" ${st('#4FB6B0')}/>
+        <path d="M30 46 Q60 30 90 46 L90 52 Q60 37 30 52Z" ${st('#FFD45E')}/>
+        <circle cx="9" cy="17" r="5.2" ${st('#FFD45E')}/><circle cx="111" cy="17" r="5.2" ${st('#FFD45E')}/>
+        <circle cx="60" cy="36" r="3.6" ${st('#FFD45E')}/>`;
     case 'bow':
       return `<g transform="translate(80 30) rotate(18)">
         <path d="M0 0 L-11 -7 L-11 7Z M0 0 L11 -7 L11 7Z" ${st('#FF7A9C')}/>
@@ -171,6 +177,9 @@ function collar(kind) {
       return `<path d="M60 96 L49 90 L49 102Z M60 96 L71 90 L71 102Z" ${st('#5B8DEF')}/><circle cx="60" cy="96" r="3" ${st('#4677DB')}/>`;
     case 'pearls':
       return [44, 50, 56, 64, 70, 76].map((x, i) => `<circle cx="${x}" cy="${95 + (i === 0 || i === 5 ? -2 : i === 1 || i === 4 ? 0 : 1)}" r="2.6" fill="#FFF8F0" stroke="${OUT}" stroke-width="1.3"/>`).join('');
+    case 'ruff':
+      return [[40, 95, '#FFD45E'], [49, 99, '#E5566E'], [60, 101, '#FFD45E'], [71, 99, '#4FB6B0'], [80, 95, '#FFD45E']]
+        .map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="7" fill="${c}" stroke="${OUT}" stroke-width="2.2"/>`).join('');
     case 'apron':
       return `<path d="M44 104 h32 v18 h-32Z" fill="#FFFFFF" stroke="${OUT}" stroke-width="2"/>`;
     case 'stetho':
@@ -343,7 +352,23 @@ export function villagerSVG() {
      <ellipse cx="160" cy="34" rx="18" ry="7" fill="#fff" opacity=".7"/><ellipse cx="38" cy="140" rx="14" ry="5" fill="#fff" opacity=".5"/>`);
 }
 
-export const ROLE_ART = { werewolf: werewolfSVG, doctor: doctorSVG, seer: seerSVG, villager: villagerSVG };
+export function jesterSVG() {
+  // a cheeky grin, a wink, and a jester's stick with a tiny copy of their own head
+  return portrait('jester', '#FFE6EF', '#F5A3BF',
+    { skin: SKIN[1], hair: 'short', hairColor: '#7A3B2E', hat: 'jester', eyes: 'wink', mouth: 'grin', shirt: '#8E6CF0', collar: 'ruff', extras: ['brows'] },
+    `<g transform="translate(162 112)">
+       <path d="M0 14 V92" stroke="#A86B3C" stroke-width="7" stroke-linecap="round"/>
+       <path d="M0 14 V92" ${line(2)} opacity=".35"/>
+       <path d="M-13 2 C-14 -8 -20 -14 -26 -14 C-18 -22 -6 -16 0 -6 C6 -16 18 -22 26 -14 C20 -14 14 -8 13 2Z" ${st('#E5566E')}/>
+       <circle cx="-26" cy="-14" r="3.6" ${st('#FFD45E')}/><circle cx="26" cy="-14" r="3.6" ${st('#FFD45E')}/>
+       <circle cx="0" cy="10" r="11" ${st('#FFE3C9')}/>
+       <path d="M-4 8 h0.1 M4 8 h0.1" ${line(3.4)}/><path d="M-4 13 q4 4 8 0" ${line(2)}/>
+     </g>`,
+    `${sparkle(36, 46, 0.8, '#fff')}${sparkle(170, 46, 0.6, '#fff')}${sparkle(30, 120, 0.5, '#fff')}
+     <path d="M150 30 l4 8 l-8 0Z M48 26 l3 6 l-6 0Z" fill="#fff" opacity=".55"/>`);
+}
+
+export const ROLE_ART = { werewolf: werewolfSVG, doctor: doctorSVG, seer: seerSVG, villager: villagerSVG, jester: jesterSVG };
 
 export function ghostSVG() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" role="img" aria-label="ghost">

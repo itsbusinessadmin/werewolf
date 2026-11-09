@@ -52,7 +52,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 1. The moderator opens **admin.html** on a **laptop**. The first visitor ever creates the admin PIN; later devices type it once. Then click **Create a new game**.
 2. Click **Copy invite for Teams** and paste it into the meeting chat.
 3. Players open the link on their **phones**, type their name and pick a villager.
-4. The moderator sets the **role mix** (werewolves, doctors, seers), the **votes per player**, the **wolf kills per night**, the night timer and any **extra clues** (Village hunch, Rumors), then clicks **Deal secret roles**.
+4. The moderator sets the **role mix** (werewolves, doctors, seers, an optional Jester), the **votes per player**, the **wolf kills per night**, the night timer and any **extra clues** (Village hunch, Rumors), then clicks **Deal secret roles**.
 5. Follow the big button and read the 🎙️ script lines out loud:
    **Night** (everyone mutes and turns their camera off) → **Morning** → **Debate** (unmute on Teams) → **Vote** → **Verdict** → next night…
 6. In **automatic mode** the app moves through every phase by itself. The admin page must stay **open** (it can be in the background) because it runs the game.
@@ -61,7 +61,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 ### The rules this app uses
 | Rule | Setting |
 |---|---|
-| Roles | Moderator sets how many **werewolves (1–6)**, **doctors (0–3)** and **seers (0–3)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
+| Roles | Moderator sets how many **werewolves (1–6)**, **doctors (0–3)**, **seers (0–3)** and an optional **Jester (0–1)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
 | 🤖 Automatic mode (on by default) | The app runs every phase by itself on timers the admin sets: **look at roles, night, morning news, debate, voting, verdict**, until someone wins. The moderator can still **⏸ pause, +30s or ⏭ skip**. With a planned player count the game even **starts itself** 10s after everyone joins. *End voting early* closes the vote once everyone has used all their votes. Turn it off to press every button yourself |
 | Planned player count (optional) | Switch on **👥 Plan the player count** to set how many players you expect. You can then set the exact number of villagers too, and the game waits until that many have joined. Anyone extra becomes a villager |
 | Dealing | 🎲 **Random**: the app shuffles all players and hands out the roles; nobody (not even the moderator) chooses. **Reshuffle roles** re-deals before night 1 |
@@ -71,6 +71,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 | Wolves pick different victims | With 1 kill per night, the app picks one of their choices at random 🎲. With more, each different pick is attacked, up to the limit. Wolves who pick the same person only kill once |
 | Doctor | Can protect themselves, but not the same person 2 nights in a row |
 | Seer | One peek per night, learns "werewolf" or "not a werewolf" |
+| Jester (optional) | On nobody's team. **Wins alone if the village votes them out**, which ends the game at once and everyone else loses. Killed by the wolves at night, they just lose. At night they tap a suspect like a villager, and the Seer sees them as "not a werewolf". Everyone can see in the lobby that a Jester is in the game |
 | Villagers at night | Tap a "suspect", so nobody can tell who has powers |
 | Death | The player's role is revealed to everyone |
 | Votes per player | Moderator picks 1–3 (in the lobby, or before each vote). Each vote must go to a different person. |
@@ -78,7 +79,8 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 | 🤔 Village hunch (optional switch) | Each morning everyone sees who got the most "Who do you suspect?" taps last night (anonymous count) |
 | 🗝️ Rumors (optional switch) | Each morning one random living villager privately hears a true clue: "One of these 3 is a werewolf." Exactly one of the three is a wolf, and the listener is never in the list |
 | Village wins | When every werewolf is gone |
-| Wolves win | When there are as many wolves as other players |
+| Wolves win | When there are as many wolves as other players (a living Jester counts as an other player) |
+| Jester wins | When the village votes out the Jester |
 
 ---
 

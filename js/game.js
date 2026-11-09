@@ -9,6 +9,9 @@ export const ROLES = {
     blurb: 'Each night, peek at one player to learn if they are a werewolf. Share wisely — the wolves are listening!' },
   villager: { name: 'Villager', team: 'village', color: '#F2A541',
     blurb: 'You have no powers, just your brain. Listen, ask questions, and vote out the werewolves!' },
+  // On nobody's team: wins only by being voted out by the village. Killed at night = just out.
+  jester:   { name: 'Jester',   team: 'jester', color: '#D9436B',
+    blurb: 'You win only if the village votes you out. Act a little suspicious, but not too much. If the wolves get you at night, you lose!' },
 };
 
 export const MIN_PLAYERS = 4;
@@ -36,14 +39,15 @@ export function shuffle(arr, rnd = Math.random) {
 
 /** what the app suggests for a group of n players */
 export function suggestRoles(n) {
-  return { werewolf: suggestWolves(n), doctor: 1, seer: 1 };
+  return { werewolf: suggestWolves(n), doctor: 1, seer: 1, jester: 0 };
 }
 
 /** '' when the moderator's numbers work, otherwise a friendly reason */
-export function validateRoles(n, { werewolf = 1, doctor = 0, seer = 0 } = {}) {
+export function validateRoles(n, { werewolf = 1, doctor = 0, seer = 0, jester = 0 } = {}) {
   if (n < MIN_PLAYERS) return `Need at least ${MIN_PLAYERS} players (you have ${n}).`;
   if (werewolf < 1) return 'You need at least 1 werewolf.';
-  if (werewolf + doctor + seer > n) return `That's ${werewolf + doctor + seer} special roles but only ${n} players.`;
+  const special = werewolf + doctor + seer + jester;
+  if (special > n) return `That's ${special} special roles but only ${n} players.`;
   if (werewolf >= n - werewolf) return `Too many werewolves: they must start out-numbered (max ${maxWolves(n)} for ${n} players).`;
   return '';
 }
@@ -56,11 +60,12 @@ export function validateRoles(n, { werewolf = 1, doctor = 0, seer = 0 } = {}) {
  */
 export function assignRoles(ids, counts, rnd = Math.random) {
   if (typeof counts === 'number') counts = { werewolf: counts, doctor: 1, seer: 1 };
-  const { werewolf = 1, doctor = 0, seer = 0 } = counts;
+  const { werewolf = 1, doctor = 0, seer = 0, jester = 0 } = counts;
   const deck = [
     ...Array(werewolf).fill('werewolf'),
     ...Array(doctor).fill('doctor'),
     ...Array(seer).fill('seer'),
+    ...Array(jester).fill('jester'),
   ];
   const order = shuffle(ids, rnd);
   const roles = {};
@@ -133,7 +138,15 @@ export function votesAllowed(setting, aliveCount) {
   return Math.max(1, Math.min(setting || 1, aliveCount - 1));
 }
 
-/** 'village' | 'wolves' | null */
+/** The Jester wins the moment the village votes them out (not when the wolves kill them). */
+export function jesterVotedOut(outId, roles) {
+  return !!outId && roles[outId] === 'jester';
+}
+
+/**
+ * 'village' | 'wolves' | null. (The Jester's own win is checked at the vote, see jesterVotedOut.)
+ * The Jester counts as a non-wolf: the wolves still need to match everyone else.
+ */
 export function checkWinner(players, roles) {
   const alive = players.filter(p => p.alive && roles[p.id]);
   const wolves = alive.filter(p => roles[p.id] === 'werewolf').length;
