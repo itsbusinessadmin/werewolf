@@ -457,3 +457,10 @@ body.theme-day { background: #FDE6EE; }
 .rs-auto { display: grid; justify-items: center; line-height: 1.1; min-height: 32px; }
 .rs-auto b { font-family: var(--font-h); font-size: 24px; }
 .rs-auto span { font-size: 11px; font-weight: 800; color: var(--ink-soft); }
+
+/* ───────── planned player count ───────── */
+.planrow { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 4px 2px; }
+.joinbar { flex: 1; min-width: 140px; height: 10px; border-radius: 999px; background: #EEEAFB; overflow: hidden; margin-bottom: 15px; }
+.joinbar div { height: 100%; background: linear-gradient(90deg, var(--mint), #6FD8B4); border-radius: inherit; transform-origin: left;
+  transition: transform .4s var(--ease-out); }
+.planrow > .small { margin-bottom: 10px; }

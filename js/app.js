@@ -129,7 +129,9 @@ function toggle(key, title, desc, on) {
 function extrasNote() {
   const st = room().settings || {};
   const on = [st.hunch && '🤔 Village hunch', st.rumor && '🗝️ Rumors'].filter(Boolean);
-  return `<p class="small" style="opacity:.85">This game: <b>${roleSummary(roleCounts(st), S.players.length)}</b></p>`
+  const plan = planned(st);
+  return (plan && room().phase === 'lobby' ? `<p class="small" style="opacity:.85">⏳ <b>${S.players.length} of ${plan}</b> players have joined</p>` : '')
+    + `<p class="small" style="opacity:.85">This game: <b>${roleSummary(roleCounts(st), plan ?? S.players.length)}</b></p>`
     + (on.length ? `<p class="small" style="opacity:.85">Extra clues: <b>${on.join(' · ')}</b></p>` : '');
 }
 
@@ -560,7 +562,7 @@ function viewMod() {
         ${modControl()}
       </div>
       <div class="card stack">
-        <div class="row"><h3>Players (${S.players.length})</h3><span class="spacer"></span>
+        <div class="row"><h3>Players (${S.players.length}${planned() && r.phase === 'lobby' ? ` of ${planned()}` : ''})</h3><span class="spacer"></span>
           ${r.phase === 'lobby' ? `<button class="btn small mint" data-act="addBot">${ICON.bot} Add test bot</button>` : ''}</div>
         ${modPlayers()}
       </div>
@@ -580,6 +582,10 @@ function script(t) { return `<div class="script">${t}</div>`; }
 function roleCounts(st = room().settings || {}) {
   return { werewolf: st.wolves ?? 2, doctor: st.doctors ?? 1, seer: st.seers ?? 1 };
 }
+// optional: the moderator plans the player count in advance (null = use whoever joined)
+const planned = (st = room().settings || {}) => (Number.isInteger(st.plannedPlayers) ? st.plannedPlayers : null);
+const planN = () => planned() ?? S.players.length;
+
 function roleSummary(c, n) {
   const v = Math.max(0, n - c.werewolf - c.doctor - c.seer);
   const part = (k, one, many, x) => (x ? `${x} ${x === 1 ? one : many}` : '');
@@ -600,24 +606,44 @@ function modControl() {
   const w = c.werewolf;
   switch (r.phase) {
     case 'lobby': {
-      const problem = G.validateRoles(n, c);
-      const sug = G.suggestRoles(n);
+      const plan = planned();
+      const N = planN();                                   // the number the roles are planned for
+      const joined = n;
+      let problem = G.validateRoles(N, c);
+      let note = '';
+      if (!problem && plan) {
+        if (joined < plan) problem = `Waiting for ${plan - joined} more player${plan - joined === 1 ? '' : 's'} (${joined} of ${plan} joined).`;
+        else if (joined > plan) {
+          problem = G.validateRoles(joined, c);
+          note = `${joined - plan} more joined than planned. They'll be extra villagers.`;
+        }
+      }
+      const sug = G.suggestRoles(N);
       const isSug = sug.werewolf === c.werewolf && sug.doctor === c.doctor && sug.seer === c.seer;
-      const villagers = Math.max(0, n - c.werewolf - c.doctor - c.seer);
+      const villagers = Math.max(0, N - c.werewolf - c.doctor - c.seer);
       return `
         <h2>Set up the game</h2>
-        <div class="field"><div class="row"><label>Roles in this game</label><span class="spacer"></span>
-          ${n >= G.MIN_PLAYERS && !isSug ? `<button class="btn small ghost" data-act="suggestRoles">✨ Use suggested for ${n}</button>` : ''}</div>
+        ${toggle('plan', '👥 Plan the player count', 'Set how many players you expect, so you can plan exactly how many villagers, doctors, seers and werewolves before anyone joins. The game waits until everyone is in.', !!plan)}
+        ${plan ? `<div class="planrow">
+            <div class="field"><label>Players expected</label>
+              <div class="stepper"><button data-act="planned" data-d="-1" aria-label="fewer players">−</button><b>${plan}</b><button data-act="planned" data-d="1" aria-label="more players">+</button></div></div>
+            <div class="joinbar" aria-label="${joined} of ${plan} joined"><div style="transform:scaleX(${Math.min(1, joined / plan)})"></div></div>
+            <span class="small"><b>${joined}</b> of ${plan} joined ${joined >= plan ? '✅' : '⏳'}</span>
+          </div>` : ''}
+        <div class="field"><div class="row"><label>Roles for ${N} player${N === 1 ? '' : 's'}</label><span class="spacer"></span>
+          ${N >= G.MIN_PLAYERS && !isSug ? `<button class="btn small ghost" data-act="suggestRoles">✨ Use suggested for ${N}</button>` : ''}</div>
           <div class="rolesteps">
             ${roleStepper('wolves', 'Werewolves', c.werewolf, G.ROLES.werewolf.color, ROLE_SVG.werewolf)}
             ${roleStepper('doctors', 'Doctors', c.doctor, G.ROLES.doctor.color, ROLE_SVG.doctor)}
             ${roleStepper('seers', 'Seers', c.seer, G.ROLES.seer.color, ROLE_SVG.seer)}
-            <div class="rolestep auto" style="--rc:${G.ROLES.villager.color}">
+            ${plan ? roleStepper('villagers', 'Villagers', villagers, G.ROLES.villager.color, ROLE_SVG.villager)
+                   : `<div class="rolestep auto" style="--rc:${G.ROLES.villager.color}">
               <div class="rs-art">${ROLE_SVG.villager}</div>
               <b class="rs-name">Villagers</b>
               <div class="rs-auto"><b>${villagers}</b><span>everyone else</span></div>
-            </div>
+            </div>`}
           </div>
+          ${note ? `<p class="banner">👥 ${note}</p>` : ''}
           <p class="muted small">🎲 When you deal, the app shuffles everyone and hands out these roles at random. Nobody (not even you) chooses who gets what.</p>
         </div>
         <div class="row wrap" style="gap:24px">
@@ -1038,7 +1064,9 @@ async function createRoom() {
 async function dealRoles() {
   const r = room(); const ps = S.players;
   const counts = roleCounts(r.settings);
-  const problem = G.validateRoles(ps.length, counts);
+  const plan = planned(r.settings);
+  if (plan && ps.length < plan) return toast(`Waiting for ${plan - ps.length} more player(s) to join.`);
+  const problem = G.validateRoles(ps.length, counts);   // extra players beyond the plan simply become villagers
   if (problem) return toast(problem);
   const roles = G.assignRoles(ps.map((p) => p.id), counts);
   const wolves = ps.filter((p) => roles[p.id] === 'werewolf').map((p) => p.id);
@@ -1289,8 +1317,22 @@ const ACT = {
   openTab: () => window.open(inviteLink(), '_blank'),
   addBot: () => guarded(addBot),
   kick: (d) => guarded(() => S.be.del(P(`/players/${d.id}`))),
+  togglePlan: () => {
+    if (planned()) return guarded(() => S.be.update(P(), { 'settings.plannedPlayers': null }));
+    const c = roleCounts();
+    const start = Math.max(S.players.length, G.MIN_PLAYERS, c.werewolf * 2 + c.doctor + c.seer, 8);
+    guarded(() => S.be.update(P(), { 'settings.plannedPlayers': Math.min(30, start) }));
+  },
+  planned: (d) => {
+    const c = roleCounts();
+    const minN = Math.max(G.MIN_PLAYERS, c.werewolf + c.doctor + c.seer);
+    const next = Math.min(30, Math.max(minN, planN() + +d.d));
+    if (next === planN()) return toast(+d.d < 0 ? `Can't go below ${minN}: lower a role first` : 'Max 30 players');
+    guarded(() => S.be.update(P(), { 'settings.plannedPlayers': next }));
+  },
   roleCount: (d) => {
-    const key = d.k;                                           // wolves | doctors | seers
+    const key = d.k;                                           // wolves | doctors | seers | villagers
+    if (key === 'villagers') return ACT.planned(d);            // villagers = expected players − special roles
     const cur = roleCounts();
     const now = { wolves: cur.werewolf, doctors: cur.doctor, seers: cur.seer }[key];
     const min = key === 'wolves' ? 1 : 0;
@@ -1300,7 +1342,7 @@ const ACT = {
     guarded(() => S.be.update(P(), { [`settings.${key}`]: next }));
   },
   suggestRoles: () => {
-    const s = G.suggestRoles(S.players.length);
+    const s = G.suggestRoles(planN());
     guarded(() => S.be.update(P(), { 'settings.wolves': s.werewolf, 'settings.doctors': s.doctor, 'settings.seers': s.seer }));
   },
   reshuffle: () => guarded(async () => {
@@ -1314,7 +1356,7 @@ const ACT = {
     guarded(() => S.be.update(P(), { 'settings.wolves': w }));
   },
   nightSecs: (d) => guarded(() => S.be.update(P(), { 'settings.nightSeconds': +d.s })),
-  toggleSetting: (d) => guarded(() => S.be.update(P(), { [`settings.${d.k}`]: !room().settings?.[d.k] })),
+  toggleSetting: (d) => (d.k === 'plan' ? ACT.togglePlan() : guarded(() => S.be.update(P(), { [`settings.${d.k}`]: !room().settings?.[d.k] }))),
   deal: () => guarded(dealRoles),
   night: () => guarded(startNight),
   endNight: () => guarded(resolveNightNow),
