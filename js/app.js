@@ -27,7 +27,7 @@ const PHASE_LABEL = { lobby: 'Lobby', roles: 'Roles', night: 'Night', morning: '
 
 const store = {
   get area() { return S.be?.mode === 'demo' ? sessionStorage : localStorage; },
-  key: `moonhollow-session-${PAGE}`,
+  key: `moonhollow-session-${PAGE}${window.name ? '-' + window.name : ''}`,
   get() { try { return JSON.parse(this.area.getItem(this.key)); } catch { return null; } },
   set(v) { try { this.area.setItem(this.key, JSON.stringify(v)); } catch {} },
   clear() { try { this.area.removeItem(this.key); } catch {} },
@@ -440,7 +440,7 @@ function pNight() {
         <div><b style="font-size:18px">${pname(seerResult.target)}</b><br/>${seerResult.isWolf ? 'is a <b>WEREWOLF!</b> 🐺' : 'is <b>not</b> a werewolf. 😇'}</div>
       </div>` : ''}
     ${tiles(list, { pick: true, sel: picked, disabled, tag, color })}
-    <p class="center muted small">${seerResult ? 'Your vision is complete for tonight. ✨' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : `Tap a villager. Type: ${type}`}</p>
+    <p class="center muted small">${seerResult ? 'Your vision is complete for tonight. ✨' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : 'Tap someone to choose.'}</p>
   </div>`;
 }
 
