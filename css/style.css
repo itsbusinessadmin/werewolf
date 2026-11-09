@@ -575,3 +575,7 @@ body.theme-day { background: #FDE6EE; }
   background: #F1EEFA; color: var(--purple-d); font-size: 40px; }
 details.card summary { min-height: 28px; }
 details.card summary .muted { font-weight: 700; }
+
+/* ───────── more than one victim in a night ───────── */
+.big-av.victims { gap: 14px; flex-wrap: wrap; }
+.stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; }

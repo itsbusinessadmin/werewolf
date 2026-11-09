@@ -74,7 +74,7 @@ const isAlive = (players, id) => !!players.find(p => p.id === id && p.alive);
  * Work out what happened during the night.
  * actions: [{ uid, type: 'kill'|'protect'|'inspect'|'suspect', target }]
  */
-export function resolveNight({ players, roles, actions, lastProtected = {}, rnd = Math.random }) {
+export function resolveNight({ players, roles, actions, lastProtected = {}, kills = 1, rnd = Math.random }) {
   const last = typeof lastProtected === 'string' ? {} : (lastProtected || {});
   const valid = actions.filter(a => isAlive(players, a.uid) && isAlive(players, a.target));
   const wolfPicks = valid
@@ -87,10 +87,27 @@ export function resolveNight({ players, roles, actions, lastProtected = {}, rnd 
   }
   const protectedIds = [...new Set(Object.values(protectedBy))];
 
-  // two different picks → the moon decides (random one of the picks)
-  const victim = wolfPicks.length ? wolfPicks[Math.floor(rnd() * wolfPicks.length)] : null;
-  const saved = !!victim && protectedIds.includes(victim);
-  return { victim: saved ? null : victim, attacked: victim, saved, protectedBy, protectedIds, protectedId: protectedIds[0] || null, wolfPicks };
+  // How many people the wolves attack tonight: the moderator's setting, but never more than
+  // one per living wolf (so "kills = number of wolves" means every wolf's pick is attacked).
+  const livingWolves = players.filter(p => p.alive && roles[p.id] === 'werewolf').length;
+  const max = Math.max(1, Math.min(Math.floor(kills) || 1, livingWolves || 1));
+  // Draw distinct targets from the picks. A person picked by more wolves is more likely to be
+  // drawn first; with one kill and two different picks, the moon decides between them.
+  const pool = [...wolfPicks];
+  const attackedIds = [];
+  while (pool.length && attackedIds.length < max) {
+    const t = pool[Math.floor(rnd() * pool.length)];
+    attackedIds.push(t);
+    for (let i = pool.length - 1; i >= 0; i--) if (pool[i] === t) pool.splice(i, 1);
+  }
+  const savedIds = attackedIds.filter(id => protectedIds.includes(id));
+  const victims = attackedIds.filter(id => !protectedIds.includes(id));
+  return {
+    victims, attackedIds, savedIds,
+    // single-victim fields kept for older code paths
+    victim: victims[0] || null, attacked: attackedIds[0] || null, saved: savedIds.length > 0,
+    protectedBy, protectedIds, protectedId: protectedIds[0] || null, wolfPicks,
+  };
 }
 
 /**

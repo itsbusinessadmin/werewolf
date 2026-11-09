@@ -153,6 +153,7 @@ function extrasNote() {
   const plan = planned(st);
   return (plan && room().phase === 'lobby' ? `<p class="small" style="opacity:.85"><b>${S.players.length} of ${plan}</b> players have joined</p>` : '')
     + `<p class="small" style="opacity:.85">This game: <b>${roleSummary(roleCounts(st), plan ?? S.players.length)}</b></p>`
+    + (killsSetting(st) > 1 ? `<p class="small" style="opacity:.85">Wolves can take up to <b>${killsSetting(st)} people</b> a night</p>` : '')
     + (on.length ? `<p class="small" style="opacity:.85">Extra clues: <b>${on.join(' · ')}</b></p>` : '');
 }
 
@@ -410,7 +411,9 @@ function pNight() {
   switch (role) {
     case 'werewolf':
       title = 'Who will you gobble up tonight?'; color = '#FF6F91';
-      hint = 'If your pack picks different people, the moon decides at random.';
+      hint = wolfKills() > 1
+        ? `Tonight the pack can take up to ${wolfKills()}. Pick different people to take more than one.`
+        : 'If your pack picks different people, the moon decides at random.';
       list = alive(); disabled = (p) => p.id === S.uid || partners.has(p.id);
       tag = (p) => (p.id === S.uid || partners.has(p.id) ? 'pack' : '');
       break;
@@ -446,22 +449,25 @@ function pNight() {
 
 function pMorning() {
   const mo = room().morning || {};
-  if (!mo.victim) return `
+  const vs = victimsOf(mo);
+  if (!vs.length) return `
     <div class="card announce">
       <div class="rays"></div>
       <div class="big-art anim">${villagerSVG()}</div>
       <h2>A quiet night</h2>
       <p class="muted" style="margin-top:8px">Everyone woke up safe and sound. Maybe the doctor saved someone…</p>
     </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
-  const v = pl(mo.victim); const role = v?.role;
-  const isMe = mo.victim === S.uid;
+  const isMe = vs.includes(S.uid);
+  const names = vs.map((id) => (id === S.uid ? 'you' : esc(pl(id)?.name)));
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  const title = vs.length === 1 ? (isMe ? 'Oh no, it was you!' : `${list} was gobbled up!`) : `${list[0].toUpperCase()}${list.slice(1)} were gobbled up!`;
   return `
     <div class="card announce">
       <div class="rays" style="--ray:#ECE6FF"></div>
-      <div class="big-av">${av(v?.avatar, 120, { dead: true })}</div>
-      <h2>${isMe ? 'Oh no, it was you!' : `${esc(v?.name)} was gobbled up!`}</h2>
-      <p class="muted" style="margin-top:6px">The village found ${isMe ? 'you' : 'them'} at sunrise.</p>
-      ${role ? `<div class="stamp" style="--rc:${RC(role)}">They were a ${G.ROLES[role].name}</div>` : ''}
+      <div class="big-av victims">${vs.map((id) => av(pl(id)?.avatar, vs.length > 1 ? 92 : 120, { dead: true })).join('')}</div>
+      <h2>${title}</h2>
+      <p class="muted" style="margin-top:6px">The village found ${vs.length > 1 ? 'them' : isMe ? 'you' : 'them'} at sunrise.</p>
+      <div class="stamps">${vs.map((id) => { const role = pl(id)?.role; return role ? `<div class="stamp" style="--rc:${RC(role)}">${vs.length > 1 ? `${esc(pl(id)?.name)}: ` : 'They were a '}${G.ROLES[role].name}</div>` : ''; }).join('')}</div>
       ${isMe ? `<p style="margin-top:14px"><b>You're a ghost now.</b> Watch quietly, no hints.</p>` : ''}
     </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
 }
@@ -488,6 +494,12 @@ function pDay() {
 function myVotes() {
   return nowVotes().find((v) => v.uid === S.uid)?.targets || [];
 }
+// who died in the night (older rooms only stored one victim)
+const victimsOf = (mo) => mo?.victims || (mo?.victim ? [mo.victim] : []);
+// the moderator's "wolf kills per night" (1 by default), never above the number of wolves
+const killsSetting = (st = room().settings || {}) => Math.max(1, Math.min(st.killsPerNight ?? 1, st.wolves ?? 2));
+// what the wolves can actually take tonight: also capped by the living pack
+const wolfKills = () => Math.max(1, Math.min(killsSetting(), 1 + (S.secret?.partners || []).filter((id) => pl(id)?.alive).length));
 const votesEach = () => G.votesAllowed(room().settings?.votesPerPlayer, alive().length);
 
 function pVote() {
@@ -746,6 +758,9 @@ function modControl() {
           <div class="field"><label>Votes per player</label>
             <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div>
             <span class="muted small">each morning vote</span></div>
+          <div class="field"><label>Wolf kills per night</label>
+            <div class="stepper"><button data-act="kills" data-d="-1" aria-label="fewer kills">−</button><b>${killsSetting()}</b><button data-act="kills" data-d="1" aria-label="more kills">+</button></div>
+            <span class="muted small">${killsSetting() >= c.werewolf && c.werewolf > 1 ? 'one per wolf' : killsSetting() === 1 ? 'the pack shares one' : `up to ${killsSetting()} a night`}</span></div>
         </div>
         ${timersField()}
         <div class="field"><label>Extra clues for the village</label>
@@ -772,9 +787,11 @@ function modControl() {
         ${ctl(`<button class="btn pink" data-act="endNight">${ICON.skip} End night now</button>`)}`;
     }
     case 'morning': {
-      const v = r.morning?.victim;
+      const vs = victimsOf(r.morning);
+      const was = (id) => `<b>${pname(id)}</b> was a <b>${G.ROLES[S.mod?.roles?.[id]]?.name}</b>`;
       return `<h2>Morning</h2>
-        ${v ? script(`“As the sun rose… the village found <b>${pname(v)}</b> gobbled up! They were a <b>${G.ROLES[S.mod?.roles?.[v]]?.name}</b>.”`)
+        ${vs.length === 1 ? script(`“As the sun rose… the village found <b>${pname(vs[0])}</b> gobbled up! They were a <b>${G.ROLES[S.mod?.roles?.[vs[0]]]?.name}</b>.”`)
+          : vs.length ? script(`“As the sun rose… the wolves struck ${vs.length} times! ${vs.map(was).join(', and ')}.”`)
             : script('“Good news! Nobody died last night. Someone must have been protected…”')}
         ${r.morning?.hunch ? script(`“The village’s hunch… most of you suspected <b>${r.morning.hunch.ids.map(pname).join(' and ')}</b> last night. Hmm…”`) : ''}
         ${r.morning?.rumor ? `<p class="banner">Rumor sent privately to <b>${pname(r.morning.rumor)}</b>. Don't say who!</p>` : ''}
@@ -1320,22 +1337,24 @@ async function resolveNightNow() {
     await processSeer();
     const roles = S.mod.roles || {};
     const lastMap = S.mod.lastProtected && typeof S.mod.lastProtected === 'object' ? S.mod.lastProtected : {};
-    const res = G.resolveNight({ players: S.players, roles, actions: nowActions(), lastProtected: lastMap });
-    const after = S.players.map((p) => (p.id === res.victim ? { ...p, alive: false } : p));
+    const st = r.settings || {};
+    const res = G.resolveNight({ players: S.players, roles, actions: nowActions(), lastProtected: lastMap, kills: killsSetting(st) });
+    const dead = new Set(res.victims);
+    const after = S.players.map((p) => (dead.has(p.id) ? { ...p, alive: false } : p));
     const winner = G.checkWinner(after, roles);
     const doctorIds = Object.keys(roles).filter((id) => roles[id] === 'doctor');
     const picks = [...new Set(res.wolfPicks)];
     let text = `Night ${r.round}: wolves picked ${picks.length ? picks.map(pname).map((n) => `<b>${n}</b>`).join(' & ') : 'nobody'}`;
-    if (picks.length > 1) text += ` (the moon chose <b>${pname(res.attacked)}</b>)`;
+    if (picks.length > res.attackedIds.length) text += ` (the moon chose <b>${res.attackedIds.map(pname).join(' & ')}</b>)`;
     if (doctorIds.length) {
       const prot = res.protectedIds.map((id) => `<b>${pname(id)}</b>`).join(' & ');
       text += prot ? `. Doctor${doctorIds.length > 1 ? 's' : ''} protected ${prot}.` : `. Doctor${doctorIds.length > 1 ? 's' : ''} protected nobody.`;
     } else text += '.';
-    text += res.saved ? ' Saved by the doctor.' : res.victim ? ` <b>${pname(res.victim)}</b> died.` : '';
+    if (res.savedIds.length) text += ` The attack on <b>${res.savedIds.map(pname).join(' & ')}</b> failed.`;
+    if (res.victims.length) text += ` <b>${res.victims.map(pname).join(' & ')}</b> died.`;
 
     const ops = [];
     // optional clues for the village
-    const st = r.settings || {};
     const hunch = st.hunch && !winner ? G.villageHunch(nowActions(), after) : null;
     const rumor = st.rumor && !winner ? G.makeRumor(after, roles) : null;
     if (hunch) text += ` Hunch: ${hunch.ids.map(pname).join(' & ')} (${hunch.count}/${hunch.total}).`;
@@ -1343,16 +1362,16 @@ async function resolveNightNow() {
       ops.push({ type: 'update', path: P(`/secrets/${rumor.to}`), data: { [`rumor.${r.round}`]: rumor.ids } });
       text += ` Rumor to <b>${pname(rumor.to)}</b>: one of ${rumor.ids.map(pname).join(', ')}.`;
     }
-    if (res.victim) ops.push({ type: 'update', path: P(`/players/${res.victim}`), data: { alive: false, role: roles[res.victim] } });
+    for (const id of res.victims) ops.push({ type: 'update', path: P(`/players/${id}`), data: { alive: false, role: roles[id] } });
     const newLast = {};
     for (const id of doctorIds) {
       newLast[id] = res.protectedBy[id] || null;
       ops.push({ type: 'update', path: P(`/secrets/${id}`), data: { lastProtected: res.protectedBy[id] || null } });
     }
-    if (winner) ops.push(...revealAllOps(roles, res.victim ? { [res.victim]: { alive: false } } : {}));
+    if (winner) ops.push(...revealAllOps(roles, Object.fromEntries(res.victims.map((id) => [id, { alive: false }]))));
     S.mod.lastProtected = newLast;
     ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` ${winner === 'wolves' ? 'Werewolves' : 'Village'} win.` : '')) } });
-    ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null, phaseEndsAt: winner ? null : endsFor('morning'), pausedLeft: null } });
+    ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, victims: res.victims, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null, phaseEndsAt: winner ? null : endsFor('morning'), pausedLeft: null } });
     await S.be.batch(ops);
   } catch (e) {
     S.resolving = null;
@@ -1516,6 +1535,13 @@ const ACT = {
   confirmOk: () => closeConfirm(true),
   confirmCancel: () => closeConfirm(false),
   noop: () => {},
+  kills: (d) => {
+    const st = room().settings || {};
+    const max = Math.max(1, st.wolves ?? 2);
+    const v = Math.min(max, Math.max(1, killsSetting(st) + +d.d));
+    if (v === killsSetting(st)) return toast(v === max ? `Max ${max}: one per wolf` : 'At least 1');
+    guarded(() => S.be.update(P(), { 'settings.killsPerNight': v }));
+  },
   vpp: (d) => {
     const v = Math.min(3, Math.max(1, (room().settings?.votesPerPlayer ?? 1) + +d.d));
     guarded(() => S.be.update(P(), { 'settings.votesPerPlayer': v }));
