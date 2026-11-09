@@ -880,7 +880,7 @@ function viewAdminHome() {
         <h2>Start a game 🎲</h2>
         <p class="muted">You'll be the moderator. You run the game but don't play.</p>
         <button class="btn" data-act="create">${ICON.sparkle} Create a new game</button>
-        ${last ? `<button class="btn sun" data-act="resume">${ICON.play} Resume game ${esc(last.code)} <span class="small" style="opacity:.75">(${PHASE_LABEL[last.phase] || last.phase})</span></button>` : ''}
+        ${last ? `<button class="btn sun" data-act="resumeGame">${ICON.play} Resume game ${esc(last.code)} <span class="small" style="opacity:.75">(${PHASE_LABEL[last.phase] || last.phase})</span></button>` : ''}
       </div>
       <div class="card stack">
         <h3>${ICON.link} Player link</h3>
@@ -1419,7 +1419,7 @@ const ACT = {
   showSetup: () => { S.view = 'adminSetup'; render(); },
   adminSetup: () => guarded(adminSetup),
   adminLogin: () => guarded(adminLogin),
-  resume: () => S.lastRoom && enterRoom(S.lastRoom.code, true),
+  resumeGame: () => S.lastRoom && enterRoom(S.lastRoom.code, true),
   copyLink: async () => { await copy(playerLink()); toast('Player link copied! 🔗'); },
   pickIcon: (d) => { S.ui.draft.icon = ICON_CHOICES[+d.i]; render(); },
   resetBrand: () => { S.ui.draft = JSON.parse(JSON.stringify(DEFAULT_BRAND)); render(); },
@@ -1502,18 +1502,18 @@ const ACT = {
     guarded(() => S.be.update(P(), ops));
   },
   timer: (d) => guarded(() => S.be.update(P(), { [`settings.times.${d.k}`]: +d.s })),
-  pause: () => guarded(() => {
+  pause: () => S.code && guarded(() => {
     const r = room();
     if (!r.phaseEndsAt) return;
     return S.be.update(P(), { pausedLeft: Math.max(0, r.phaseEndsAt - Date.now()), phaseEndsAt: null });
   }),
-  resume: () => guarded(() => S.be.update(P(), { phaseEndsAt: Date.now() + (room().pausedLeft || 0), pausedLeft: null })),
-  extend: () => guarded(() => {
+  resume: () => S.code && guarded(() => S.be.update(P(), { phaseEndsAt: Date.now() + (room().pausedLeft || 0), pausedLeft: null })),
+  extend: () => S.code && guarded(() => {
     const r = room();
     if (r.pausedLeft != null) return S.be.update(P(), { pausedLeft: r.pausedLeft + 30000 });
     return S.be.update(P(), { phaseEndsAt: (r.phaseEndsAt || Date.now()) + 30000 });
   }),
-  skip: () => guarded(async () => {
+  skip: () => S.code && guarded(async () => {
     const r = room();
     if (r.pausedLeft != null) await S.be.update(P(), { pausedLeft: null });
     await advance({ ...r, pausedLeft: null }, 'skip');
