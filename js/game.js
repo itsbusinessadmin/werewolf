@@ -34,16 +34,37 @@ export function shuffle(arr, rnd = Math.random) {
   return a;
 }
 
-/** returns { [playerId]: role } */
-export function assignRoles(ids, wolves, rnd = Math.random) {
+/** what the app suggests for a group of n players */
+export function suggestRoles(n) {
+  return { werewolf: suggestWolves(n), doctor: 1, seer: 1 };
+}
+
+/** '' when the moderator's numbers work, otherwise a friendly reason */
+export function validateRoles(n, { werewolf = 1, doctor = 0, seer = 0 } = {}) {
+  if (n < MIN_PLAYERS) return `Need at least ${MIN_PLAYERS} players (you have ${n}).`;
+  if (werewolf < 1) return 'You need at least 1 werewolf.';
+  if (werewolf + doctor + seer > n) return `That's ${werewolf + doctor + seer} special roles but only ${n} players.`;
+  if (werewolf >= n - werewolf) return `Too many werewolves: they must start out-numbered (max ${maxWolves(n)} for ${n} players).`;
+  return '';
+}
+
+/**
+ * Randomly deal roles. `counts` = { werewolf, doctor, seer } chosen by the
+ * moderator; everyone else becomes a villager. (A plain number = wolves,
+ * with 1 doctor and 1 seer, for older callers.)
+ * returns { [playerId]: role }
+ */
+export function assignRoles(ids, counts, rnd = Math.random) {
+  if (typeof counts === 'number') counts = { werewolf: counts, doctor: 1, seer: 1 };
+  const { werewolf = 1, doctor = 0, seer = 0 } = counts;
+  const deck = [
+    ...Array(werewolf).fill('werewolf'),
+    ...Array(doctor).fill('doctor'),
+    ...Array(seer).fill('seer'),
+  ];
   const order = shuffle(ids, rnd);
   const roles = {};
-  order.forEach((id, i) => {
-    if (i < wolves) roles[id] = 'werewolf';
-    else if (i === wolves) roles[id] = 'doctor';
-    else if (i === wolves + 1) roles[id] = 'seer';
-    else roles[id] = 'villager';
-  });
+  order.forEach((id, i) => { roles[id] = deck[i] || 'villager'; });
   return roles;
 }
 
@@ -53,18 +74,23 @@ const isAlive = (players, id) => !!players.find(p => p.id === id && p.alive);
  * Work out what happened during the night.
  * actions: [{ uid, type: 'kill'|'protect'|'inspect'|'suspect', target }]
  */
-export function resolveNight({ players, roles, actions, lastProtected, rnd = Math.random }) {
+export function resolveNight({ players, roles, actions, lastProtected = {}, rnd = Math.random }) {
+  const last = typeof lastProtected === 'string' ? {} : (lastProtected || {});
   const valid = actions.filter(a => isAlive(players, a.uid) && isAlive(players, a.target));
   const wolfPicks = valid
     .filter(a => a.type === 'kill' && roles[a.uid] === 'werewolf' && roles[a.target] !== 'werewolf')
     .map(a => a.target);
-  const doc = valid.find(a => a.type === 'protect' && roles[a.uid] === 'doctor' && a.target !== lastProtected);
+  // every doctor protects one person (never the same person they protected last night)
+  const protectedBy = {};
+  for (const a of valid) {
+    if (a.type === 'protect' && roles[a.uid] === 'doctor' && a.target !== last[a.uid]) protectedBy[a.uid] = a.target;
+  }
+  const protectedIds = [...new Set(Object.values(protectedBy))];
 
   // two different picks → the moon decides (random one of the picks)
   const victim = wolfPicks.length ? wolfPicks[Math.floor(rnd() * wolfPicks.length)] : null;
-  const protectedId = doc ? doc.target : null;
-  const saved = !!victim && victim === protectedId;
-  return { victim: saved ? null : victim, attacked: victim, saved, protectedId, wolfPicks };
+  const saved = !!victim && protectedIds.includes(victim);
+  return { victim: saved ? null : victim, attacked: victim, saved, protectedBy, protectedIds, protectedId: protectedIds[0] || null, wolfPicks };
 }
 
 /**

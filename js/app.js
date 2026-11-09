@@ -129,7 +129,8 @@ function toggle(key, title, desc, on) {
 function extrasNote() {
   const st = room().settings || {};
   const on = [st.hunch && '🤔 Village hunch', st.rumor && '🗝️ Rumors'].filter(Boolean);
-  return on.length ? `<p class="small" style="opacity:.85">Extra clues this game: <b>${on.join(' · ')}</b></p>` : '';
+  return `<p class="small" style="opacity:.85">This game: <b>${roleSummary(roleCounts(st), S.players.length)}</b></p>`
+    + (on.length ? `<p class="small" style="opacity:.85">Extra clues: <b>${on.join(' · ')}</b></p>` : '');
 }
 
 function hunchCard() {
@@ -575,37 +576,69 @@ function viewMod() {
 
 function script(t) { return `<div class="script">${t}</div>`; }
 
+// how many of each special role the moderator chose (everyone else = villager)
+function roleCounts(st = room().settings || {}) {
+  return { werewolf: st.wolves ?? 2, doctor: st.doctors ?? 1, seer: st.seers ?? 1 };
+}
+function roleSummary(c, n) {
+  const v = Math.max(0, n - c.werewolf - c.doctor - c.seer);
+  const part = (k, one, many, x) => (x ? `${x} ${x === 1 ? one : many}` : '');
+  return [part('w', 'werewolf', 'werewolves', c.werewolf), part('d', 'doctor', 'doctors', c.doctor), part('s', 'seer', 'seers', c.seer), part('v', 'villager', 'villagers', v)].filter(Boolean).join(' · ');
+}
+function roleStepper(key, label, value, color, art) {
+  return `<div class="rolestep" style="--rc:${color}">
+    <div class="rs-art">${art}</div>
+    <b class="rs-name">${label}</b>
+    <div class="stepper"><button data-act="roleCount" data-k="${key}" data-d="-1" aria-label="fewer ${label}">−</button><b>${value}</b><button data-act="roleCount" data-k="${key}" data-d="1" aria-label="more ${label}">+</button></div>
+  </div>`;
+}
+
 function modControl() {
   const r = room();
   const n = S.players.length;
-  const w = r.settings?.wolves ?? 2;
+  const c = roleCounts();
+  const w = c.werewolf;
   switch (r.phase) {
     case 'lobby': {
-      const maxW = G.maxWolves(n);
-      const problem = n < G.MIN_PLAYERS ? `Need at least ${G.MIN_PLAYERS} players (you have ${n}).` : w > maxW ? `Too many werewolves for ${n} players (max ${maxW}).` : '';
+      const problem = G.validateRoles(n, c);
+      const sug = G.suggestRoles(n);
+      const isSug = sug.werewolf === c.werewolf && sug.doctor === c.doctor && sug.seer === c.seer;
+      const villagers = Math.max(0, n - c.werewolf - c.doctor - c.seer);
       return `
         <h2>Set up the game</h2>
+        <div class="field"><div class="row"><label>Roles in this game</label><span class="spacer"></span>
+          ${n >= G.MIN_PLAYERS && !isSug ? `<button class="btn small ghost" data-act="suggestRoles">✨ Use suggested for ${n}</button>` : ''}</div>
+          <div class="rolesteps">
+            ${roleStepper('wolves', 'Werewolves', c.werewolf, G.ROLES.werewolf.color, ROLE_SVG.werewolf)}
+            ${roleStepper('doctors', 'Doctors', c.doctor, G.ROLES.doctor.color, ROLE_SVG.doctor)}
+            ${roleStepper('seers', 'Seers', c.seer, G.ROLES.seer.color, ROLE_SVG.seer)}
+            <div class="rolestep auto" style="--rc:${G.ROLES.villager.color}">
+              <div class="rs-art">${ROLE_SVG.villager}</div>
+              <b class="rs-name">Villagers</b>
+              <div class="rs-auto"><b>${villagers}</b><span>everyone else</span></div>
+            </div>
+          </div>
+          <p class="muted small">🎲 When you deal, the app shuffles everyone and hands out these roles at random. Nobody (not even you) chooses who gets what.</p>
+        </div>
         <div class="row wrap" style="gap:24px">
-          <div class="field"><label>Werewolves</label>
-            <div class="stepper"><button data-act="wolves" data-d="-1" aria-label="fewer">−</button><b>${w}</b><button data-act="wolves" data-d="1" aria-label="more">+</button></div>
-            <span class="muted small">Suggested for ${n}: ${G.suggestWolves(n)}</span></div>
           <div class="field"><label>Votes per player</label>
             <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div>
             <span class="muted small">each morning vote</span></div>
           <div class="field" style="flex:1;min-width:220px"><label>Night timer</label>
             <div class="seg">${[30, 45, 60, 90].map((s) => `<button class="${(r.settings?.nightSeconds ?? 45) === s ? 'on' : ''}" data-act="nightSecs" data-s="${s}">${s}s</button>`).join('')}</div></div>
         </div>
-        <p class="muted small">Roles: ${w} ${w > 1 ? 'werewolves' : 'werewolf'} · 1 doctor · 1 seer · ${Math.max(0, n - w - 2)} villagers</p>
         <div class="field"><label>Extra clues for the village</label>
           ${toggle('hunch', '🤔 Village hunch', 'Each morning, everyone sees who got the most “Who do you suspect?” taps last night. The count is anonymous.', r.settings?.hunch)}
           ${toggle('rumor', '🗝️ Rumors', 'Each morning, one random villager secretly hears a true clue: “One of these 3 people is a werewolf.” Makes the game easier for the village.', r.settings?.rumor)}
         </div>
         ${problem ? `<p class="banner">${problem}</p>` : ''}
-        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>${ICON.sparkle} Deal secret roles</button>`;
+        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>🎲 Deal random roles</button>`;
     }
     case 'roles':
       return `<h2>Roles are dealt! 🃏</h2>
+        <p class="muted small">${roleSummary(roleCounts(), S.players.length)}</p>
         ${script('“Check your phone and tap the card to see your secret role. Don’t show anyone!”')}
+        <button class="btn ghost small" data-act="reshuffle">🎲 Reshuffle roles</button>
         <button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`;
     case 'night': {
       const acted = new Set(nowActions().map((a) => a.uid));
@@ -912,6 +945,11 @@ function enterRoom(code, isMod) {
     if (!d) { toast('This game was closed.'); leave(); return; }
     const prev = S.room;
     S.room = d;
+    if (prev && prev.phase === 'roles' && d.phase === 'roles' && prev.dealtAt !== d.dealtAt) {
+      S.ui.flipped = false;                       // the moderator reshuffled: show the new card face-down
+      SND.play('flip');
+      if (!isMod) toast('🎲 Roles were reshuffled! Tap your card to see your NEW role.');
+    }
     if (prev && prev.phase !== d.phase) {
       phaseSound(d);
       if (d.phase === 'roles') S.ui.flipped = false;
@@ -991,15 +1029,18 @@ async function createRoom() {
   for (let i = 0; i < 6; i++) { code = G.makeCode(); if (!(await S.be.get(`rooms/${code}`))) break; }
   await S.be.set(`rooms/${code}`, {
     moderatorUid: S.uid, phase: 'lobby', game: 1, round: 0, createdAt: Date.now(),
-    settings: { wolves: 2, nightSeconds: 45, votesPerPlayer: 1, hunch: false, rumor: false },
+    settings: { wolves: 2, doctors: 1, seers: 1, nightSeconds: 45, votesPerPlayer: 1, hunch: false, rumor: false },
   });
   await S.be.set(`rooms/${code}/secrets/_mod`, { roles: {}, log: [{ t: Date.now(), text: '🏡 Room created. Waiting for villagers…' }] });
   enterRoom(code, true);
 }
 
 async function dealRoles() {
-  const r = room(); const ps = S.players; const w = r.settings.wolves;
-  const roles = G.assignRoles(ps.map((p) => p.id), w);
+  const r = room(); const ps = S.players;
+  const counts = roleCounts(r.settings);
+  const problem = G.validateRoles(ps.length, counts);
+  if (problem) return toast(problem);
+  const roles = G.assignRoles(ps.map((p) => p.id), counts);
   const wolves = ps.filter((p) => roles[p.id] === 'werewolf').map((p) => p.id);
   const ops = [];
   for (const p of ps) {
@@ -1007,9 +1048,9 @@ async function dealRoles() {
     ops.push({ type: 'update', path: P(`/players/${p.id}`), data: { alive: true, role: null } });
   }
   const names = (role) => ps.filter((p) => roles[p.id] === role).map((p) => esc(p.name)).join(', ');
-  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles, lastProtected: null, seer: {}, log: [
-    { t: Date.now(), text: `🃏 Roles dealt. 🐺 Wolves: <b>${names('werewolf')}</b> · 🛡️ Doctor: <b>${names('doctor') || 'none'}</b> · 🔮 Seer: <b>${names('seer') || 'none'}</b>` }] } });
-  ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null } });
+  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles, lastProtected: {}, seer: {}, log: [
+    { t: Date.now(), text: `🎲 Roles dealt at random. 🐺 Wolves: <b>${names('werewolf')}</b> · 🛡️ Doctor: <b>${names('doctor') || 'none'}</b> · 🔮 Seer: <b>${names('seer') || 'none'}</b>` }] } });
+  ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null, dealtAt: Date.now() } });
   await S.be.batch(ops);
 }
 
@@ -1019,7 +1060,7 @@ async function startNight() {
   const ops = [{ type: 'update', path: P(), data: { phase: 'night', round, nightEndsAt: Date.now() + (r.settings.nightSeconds || 45) * 1000, morning: null, verdict: null } }];
   const roles = S.mod?.roles || {};
   for (const b of S.players.filter((p) => p.bot && p.alive)) {
-    const a = G.botNightAction(b, roles[b.id], S.players, roles, S.mod?.lastProtected);
+    const a = G.botNightAction(b, roles[b.id], S.players, roles, lastFor(b.id));
     if (a.target) ops.push({ type: 'set', path: P(`/actions/${r.game}_${round}_${b.id}`), data: { game: r.game, round, uid: b.id, ...a, at: Date.now() } });
   }
   ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(`🌙 Night ${round} begins.`) } });
@@ -1027,23 +1068,32 @@ async function startNight() {
   await S.be.batch(ops);
 }
 
+// the doctor memory used to be a single id; now it's { doctorId: lastTarget }
+function lastFor(id) {
+  const lp = S.mod?.lastProtected;
+  return lp && typeof lp === 'object' ? lp[id] : undefined;
+}
+
 async function processSeer() {
   const r = room();
   if (!S.isMod || r.phase !== 'night' || !S.mod) return;
   const roles = S.mod.roles || {};
-  const seerId = Object.keys(roles).find((id) => roles[id] === 'seer');
-  if (!seerId || !pl(seerId)?.alive) return;
-  const key = curKey();
-  if (S.mod.seer?.[key] || S.seerPending === key) return;
-  const a = nowActions().find((x) => x.uid === seerId && x.type === 'inspect' && pl(x.target)?.alive);
-  if (!a) return;
-  S.seerPending = key;
-  if (S.mod) S.mod.seer = { ...(S.mod.seer || {}), [key]: a.target };
-  const isWolf = roles[a.target] === 'werewolf';
-  await S.be.batch([
-    { type: 'update', path: P(`/secrets/${seerId}`), data: { [`seer.${r.round}`]: { target: a.target, isWolf } } },
-    { type: 'update', path: P('/secrets/_mod'), data: { [`seer.${key}`]: a.target, log: logAdd(`🔮 Seer checked <b>${pname(a.target)}</b>: ${isWolf ? 'WEREWOLF' : 'not a werewolf'}.`) } },
-  ]).catch((e) => { S.seerPending = null; console.error(e); });
+  const seers = Object.keys(roles).filter((id) => roles[id] === 'seer' && pl(id)?.alive);
+  S.seerPending ||= new Set();
+  for (const seerId of seers) {
+    const key = `${curKey()}_${seerId}`;
+    if (S.mod.seer?.[key] || S.seerPending.has(key)) continue;
+    const a = nowActions().find((x) => x.uid === seerId && x.type === 'inspect' && pl(x.target)?.alive);
+    if (!a) continue;
+    S.seerPending.add(key);
+    S.mod.seer = { ...(S.mod.seer || {}), [key]: a.target };
+    const isWolf = roles[a.target] === 'werewolf';
+    const who = seers.length > 1 ? ` (${pname(seerId)})` : '';
+    await S.be.batch([
+      { type: 'update', path: P(`/secrets/${seerId}`), data: { [`seer.${r.round}`]: { target: a.target, isWolf } } },
+      { type: 'update', path: P('/secrets/_mod'), data: { [`seer.${key}`]: a.target, log: logAdd(`🔮 Seer${who} checked <b>${pname(a.target)}</b>: ${isWolf ? 'WEREWOLF' : 'not a werewolf'}.`) } },
+    ]).catch((e) => { S.seerPending.delete(key); console.error(e); });
+  }
 }
 
 function revealAllOps(roles, extra = {}) {
@@ -1057,14 +1107,18 @@ async function resolveNightNow() {
   try {
     await processSeer();
     const roles = S.mod.roles || {};
-    const res = G.resolveNight({ players: S.players, roles, actions: nowActions(), lastProtected: S.mod.lastProtected });
+    const lastMap = S.mod.lastProtected && typeof S.mod.lastProtected === 'object' ? S.mod.lastProtected : {};
+    const res = G.resolveNight({ players: S.players, roles, actions: nowActions(), lastProtected: lastMap });
     const after = S.players.map((p) => (p.id === res.victim ? { ...p, alive: false } : p));
     const winner = G.checkWinner(after, roles);
-    const doctorId = Object.keys(roles).find((id) => roles[id] === 'doctor');
+    const doctorIds = Object.keys(roles).filter((id) => roles[id] === 'doctor');
     const picks = [...new Set(res.wolfPicks)];
     let text = `☀️ Night ${r.round}: wolves picked ${picks.length ? picks.map(pname).map((n) => `<b>${n}</b>`).join(' & ') : 'nobody'}`;
     if (picks.length > 1) text += ` (the moon chose <b>${pname(res.attacked)}</b>)`;
-    text += res.protectedId ? `. Doctor protected <b>${pname(res.protectedId)}</b>.` : '. Doctor protected nobody.';
+    if (doctorIds.length) {
+      const prot = res.protectedIds.map((id) => `<b>${pname(id)}</b>`).join(' & ');
+      text += prot ? `. Doctor${doctorIds.length > 1 ? 's' : ''} protected ${prot}.` : `. Doctor${doctorIds.length > 1 ? 's' : ''} protected nobody.`;
+    } else text += '.';
     text += res.saved ? ' 🛡️ SAVED!' : res.victim ? ` 💀 <b>${pname(res.victim)}</b> died.` : '';
 
     const ops = [];
@@ -1078,10 +1132,14 @@ async function resolveNightNow() {
       text += ` 🗝️ Rumor to <b>${pname(rumor.to)}</b>: one of ${rumor.ids.map(pname).join(', ')}.`;
     }
     if (res.victim) ops.push({ type: 'update', path: P(`/players/${res.victim}`), data: { alive: false, role: roles[res.victim] } });
-    if (doctorId) ops.push({ type: 'update', path: P(`/secrets/${doctorId}`), data: { lastProtected: res.protectedId } });
+    const newLast = {};
+    for (const id of doctorIds) {
+      newLast[id] = res.protectedBy[id] || null;
+      ops.push({ type: 'update', path: P(`/secrets/${id}`), data: { lastProtected: res.protectedBy[id] || null } });
+    }
     if (winner) ops.push(...revealAllOps(roles, res.victim ? { [res.victim]: { alive: false } } : {}));
-    S.mod.lastProtected = res.protectedId;
-    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: res.protectedId, log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
+    S.mod.lastProtected = newLast;
+    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
     ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null } });
     await S.be.batch(ops);
   } catch (e) {
@@ -1118,7 +1176,7 @@ async function closeVote() {
 async function playAgain() {
   const r = room();
   const ops = S.players.map((p) => ({ type: 'update', path: P(`/players/${p.id}`), data: { alive: true, role: null } }));
-  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles: {}, seer: {}, lastProtected: null, log: [{ t: Date.now(), text: `🔁 New game #${r.game + 1}. Same villagers, new secrets!` }] } });
+  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles: {}, seer: {}, lastProtected: {}, log: [{ t: Date.now(), text: `🔁 New game #${r.game + 1}. Same villagers, new secrets!` }] } });
   ops.push({ type: 'update', path: P(), data: { phase: 'lobby', game: r.game + 1, round: 0, morning: null, verdict: null, winner: null } });
   await S.be.batch(ops);
 }
@@ -1231,6 +1289,24 @@ const ACT = {
   openTab: () => window.open(inviteLink(), '_blank'),
   addBot: () => guarded(addBot),
   kick: (d) => guarded(() => S.be.del(P(`/players/${d.id}`))),
+  roleCount: (d) => {
+    const key = d.k;                                           // wolves | doctors | seers
+    const cur = roleCounts();
+    const now = { wolves: cur.werewolf, doctors: cur.doctor, seers: cur.seer }[key];
+    const min = key === 'wolves' ? 1 : 0;
+    const max = key === 'wolves' ? 6 : 3;
+    const next = Math.min(max, Math.max(min, now + +d.d));
+    if (next === now) return toast(next === min ? (key === 'wolves' ? 'You need at least 1 werewolf 🐺' : 'Already at 0') : `Max ${max} here`);
+    guarded(() => S.be.update(P(), { [`settings.${key}`]: next }));
+  },
+  suggestRoles: () => {
+    const s = G.suggestRoles(S.players.length);
+    guarded(() => S.be.update(P(), { 'settings.wolves': s.werewolf, 'settings.doctors': s.doctor, 'settings.seers': s.seer }));
+  },
+  reshuffle: () => guarded(async () => {
+    await dealRoles();
+    toast('🎲 Roles reshuffled. Players will see a new card.');
+  }),
   wolves: (d) => {
     const n = S.players.length;
     const w = Math.min(4, Math.max(1, (room().settings?.wolves ?? 2) + +d.d));
