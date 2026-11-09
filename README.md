@@ -55,12 +55,14 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 4. The moderator sets the **role mix** (werewolves, doctors, seers), the **votes per player**, the night timer and any **extra clues** (Village hunch, Rumors), then clicks **Deal secret roles**.
 5. Follow the big button and read the 🎙️ script lines out loud:
    **Night** (everyone mutes and turns their camera off) → **Morning** → **Debate** (unmute on Teams) → **Vote** → **Verdict** → next night…
-6. ⚠️ The moderator must **not share their screen**, because it shows every role. Keep the moderator tab open: it runs the game.
+6. In **automatic mode** the app moves through every phase by itself. The admin page must stay **open** (it can be in the background) because it runs the game.
+7. ⚠️ The moderator must **not share their screen**, because it shows every role. Keep the moderator tab open: it runs the game.
 
 ### The rules this app uses
 | Rule | Setting |
 |---|---|
 | Roles | Moderator sets how many **werewolves (1–6)**, **doctors (0–3)** and **seers (0–3)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
+| 🤖 Automatic mode (on by default) | The app runs every phase by itself on timers the admin sets: **look at roles, night, morning news, debate, voting, verdict**, until someone wins. The moderator can still **⏸ pause, +30s or ⏭ skip**. With a planned player count the game even **starts itself** 10s after everyone joins. *End voting early* closes the vote once everyone has used all their votes. Turn it off to press every button yourself |
 | Planned player count (optional) | Switch on **👥 Plan the player count** to set how many players you expect. You can then set the exact number of villagers too, and the game waits until that many have joined. Anyone extra becomes a villager |
 | Dealing | 🎲 **Random**: the app shuffles all players and hands out the roles; nobody (not even the moderator) chooses. **Reshuffle roles** re-deals before night 1 |
 | Several doctors | Each protects one person; anyone protected by any doctor survives. Each doctor can't protect the same person two nights in a row |

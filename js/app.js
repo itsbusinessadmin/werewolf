@@ -59,8 +59,29 @@ function toast(msg) {
   toast.t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
+// ⏱ Every phase has a timer the admin sets. In automatic mode the app moves on by itself.
+const TIMERS = [
+  { k: 'roles',   label: '🃏 Look at roles', opts: [10, 20, 30, 45],    def: 20 },
+  { k: 'night',   label: '🌙 Night',          opts: [30, 45, 60, 90],    def: 45 },
+  { k: 'morning', label: '☀️ Morning news',   opts: [5, 10, 15, 20],     def: 10 },
+  { k: 'day',     label: '🗣️ Debate',         opts: [60, 120, 180, 300], def: 120 },
+  { k: 'vote',    label: '🗳️ Voting',         opts: [30, 45, 60, 90],    def: 45 },
+  { k: 'verdict', label: '⚖️ Verdict',        opts: [5, 10, 15, 20],     def: 10 },
+];
+const NEXT_NAME = { roles: 'Night', night: 'Morning', morning: 'Debate', day: 'Voting', vote: 'Verdict', verdict: 'Night' };
+const NEXT_SAY = { roles: 'Night falls in', morning: 'Debate starts in', day: 'Voting opens in', vote: 'Voting closes in', verdict: 'Night falls in' };
+const isAuto = (st = room().settings || {}) => st.auto !== false;           // automatic by default
+function timeFor(phase, st = room().settings || {}) {
+  if (phase === 'night') return st.times?.night ?? st.nightSeconds ?? 45;
+  return st.times?.[phase] ?? TIMERS.find((t) => t.k === phase)?.def ?? 0;
+}
+const fmt = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : `${sec}s`);
+// when the next phase should end (manual mode only times the night)
+const endsFor = (phase) => (isAuto() || phase === 'night' ? Date.now() + timeFor(phase) * 1000 : null);
+
 function secsLeft() {
-  const end = room().nightEndsAt;
+  if (room().pausedLeft != null) return Math.ceil(room().pausedLeft / 1000);
+  const end = room().phaseEndsAt ?? room().nightEndsAt;
   return end ? Math.max(0, Math.ceil((end - Date.now()) / 1000)) : 0;
 }
 
@@ -156,7 +177,7 @@ function rumorCard() {
 }
 
 function ringHTML(extra = '') {
-  const total = room().settings?.nightSeconds || 45;
+  const total = timeFor('night');
   const left = secsLeft();
   return `<div class="ring ${left <= 5 ? 'urgent' : ''}" data-ring ${extra}>
     <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="44"/><circle class="prog" cx="50" cy="50" r="44" pathLength="100" style="stroke-dashoffset:${100 - (left / total) * 100}"/></svg>
@@ -280,6 +301,19 @@ function watchJoinRoom() {
 }
 
 // ───────── player screens ─────────
+function phaseBar() {
+  const r = room();
+  if (r.phase === 'lobby' && r.autoStartAt && r.pausedLeft == null) {
+    return `<div class="phasebar go"><span>🚀 Everyone's here! The game starts in <b data-timer data-end="${r.autoStartAt}">${fmt(Math.max(0, Math.ceil((r.autoStartAt - Date.now()) / 1000)))}</b></span></div>`;
+  }
+  if (!NEXT_SAY[r.phase]) return '';
+  if (r.pausedLeft != null) return `<div class="phasebar paused"><span>⏸ Paused by the moderator</span></div>`;
+  if (!r.phaseEndsAt) return '';
+  const total = timeFor(r.phase), left = secsLeft();
+  return `<div class="phasebar"><span>${NEXT_SAY[r.phase]} <b data-timer data-end="${r.phaseEndsAt}">${fmt(left)}</b></span>
+    <div class="pb"><i data-tbar data-end="${r.phaseEndsAt}" data-total="${total}" style="transform:scaleX(${Math.min(1, left / total)})"></i></div></div>`;
+}
+
 function viewPlayer() {
   if (!S.room || !S.playersLoaded) return `<div class="center muted" style="padding-top:30vh">Finding your village…</div>`;
   const r = room(); const m = me();
@@ -297,7 +331,7 @@ function viewPlayer() {
     lobby: pLobby, roles: pRoles, night: pNight, morning: pMorning,
     day: pDay, vote: pVote, verdict: pVerdict, ended: pEnded,
   }[r.phase] || (() => '');
-  return top + body();
+  return top + phaseBar() + body();
 }
 
 function tiles(list, { pick = false, sel = null, disabled = () => false, tag = () => '', counts = null, color = null } = {}) {
@@ -322,7 +356,7 @@ function pLobby() {
   <div class="card stack center">
     <div style="margin:0 auto">${av(m.avatar, 110)}</div>
     <h2>You're in, ${esc(m.name)}!</h2>
-    <p class="muted">Hang tight. The moderator will deal the secret roles soon. Keep this page open next to Teams. 📱</p>
+    <p class="muted">${isAuto() && planned() ? 'Hang tight. The game starts by itself as soon as everyone is in.' : 'Hang tight. The game starts as soon as the moderator deals the roles.'} Keep this page open next to Teams. 📱</p>
     ${extrasNote()}
   </div>
   <h3 class="section-title">Villagers here <span>${S.players.length}</span></h3>
@@ -599,6 +633,34 @@ function roleStepper(key, label, value, color, art) {
   </div>`;
 }
 
+function autoControls() {
+  const r = room();
+  const paused = r.pausedLeft != null;
+  const total = timeFor(r.phase), left = secsLeft();
+  const next = NEXT_NAME[r.phase];
+  return `<div class="autobar ${paused ? 'paused' : ''}">
+    <div class="ab-time"><small>${paused ? '⏸ Paused' : `🤖 ${next} starts automatically in`}</small>
+      <b ${paused ? '' : `data-timer data-end="${r.phaseEndsAt}"`}>${fmt(left)}</b></div>
+    <div class="pb"><i ${paused ? '' : `data-tbar data-end="${r.phaseEndsAt}" data-total="${total}"`} style="transform:scaleX(${Math.min(1, left / total)})"></i></div>
+    <div class="ab-btns">
+      <button class="btn small ghost" data-act="${paused ? 'resume' : 'pause'}">${paused ? '▶ Resume' : '⏸ Pause'}</button>
+      <button class="btn small ghost" data-act="extend">+30s</button>
+      <button class="btn small" data-act="skip">⏭ Skip to ${next}</button>
+    </div></div>`;
+}
+const ctl = (manualButtons) => (isAuto() ? autoControls() : manualButtons);
+
+function timersField() {
+  const r = room();
+  const rows = (isAuto() ? TIMERS : TIMERS.filter((t) => t.k === 'night'));
+  return `<div class="field"><label>⏱ Timers</label>
+    ${toggle('auto', '🤖 Automatic mode', 'The app runs every phase by itself (roles → night → morning → debate → vote → verdict) using these timers, until someone wins. You can still pause, add time or skip.', isAuto())}
+    <div class="timers">${rows.map((t) => `<div class="trow"><span>${t.label}</span>
+      <div class="seg">${t.opts.map((o) => `<button class="${timeFor(t.k) === o ? 'on' : ''}" data-act="timer" data-k="${t.k}" data-s="${o}">${fmt(o)}</button>`).join('')}</div></div>`).join('')}</div>
+    ${isAuto() ? toggle('voteEarly', '⚡ End voting early', 'Close the vote as soon as every living player has used all their votes.', r.settings?.voteEarly !== false) : ''}
+  </div>`;
+}
+
 function modControl() {
   const r = room();
   const n = S.players.length;
@@ -650,29 +712,30 @@ function modControl() {
           <div class="field"><label>Votes per player</label>
             <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div>
             <span class="muted small">each morning vote</span></div>
-          <div class="field" style="flex:1;min-width:220px"><label>Night timer</label>
-            <div class="seg">${[30, 45, 60, 90].map((s) => `<button class="${(r.settings?.nightSeconds ?? 45) === s ? 'on' : ''}" data-act="nightSecs" data-s="${s}">${s}s</button>`).join('')}</div></div>
         </div>
+        ${timersField()}
         <div class="field"><label>Extra clues for the village</label>
           ${toggle('hunch', '🤔 Village hunch', 'Each morning, everyone sees who got the most “Who do you suspect?” taps last night. The count is anonymous.', r.settings?.hunch)}
           ${toggle('rumor', '🗝️ Rumors', 'Each morning, one random villager secretly hears a true clue: “One of these 3 people is a werewolf.” Makes the game easier for the village.', r.settings?.rumor)}
         </div>
         ${problem ? `<p class="banner">${problem}</p>` : ''}
-        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>🎲 Deal random roles</button>`;
+        ${!problem && r.autoStartAt ? `<p class="banner go">🚀 Everyone's here! Starting automatically in <b data-timer data-end="${r.autoStartAt}">${fmt(Math.max(0, Math.ceil((r.autoStartAt - Date.now()) / 1000)))}</b></p>` : ''}
+        ${isAuto() && plan && !r.autoStartAt ? `<p class="muted small">🤖 The game will start by itself 10 seconds after all ${plan} players have joined.</p>` : ''}
+        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>🎲 ${isAuto() ? (r.autoStartAt ? 'Start now' : 'Deal roles & start') : 'Deal random roles'}</button>`;
     }
     case 'roles':
       return `<h2>Roles are dealt! 🃏</h2>
         <p class="muted small">${roleSummary(roleCounts(), S.players.length)}</p>
         ${script('“Check your phone and tap the card to see your secret role. Don’t show anyone!”')}
         <button class="btn ghost small" data-act="reshuffle">🎲 Reshuffle roles</button>
-        <button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`;
+        ${ctl(`<button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`)}`;
     case 'night': {
       const acted = new Set(nowActions().map((a) => a.uid));
       const al = alive();
       return `<div class="row">${ringHTML('style="margin:0"')}
           <div><h2>Night ${r.round} 🌙</h2><p class="muted">${al.filter((p) => acted.has(p.id)).length} of ${al.length} players have chosen</p></div></div>
         ${script('“Night falls on Moonhollow… Everyone mute and turn your camera off. Make your choice on your phone.”')}
-        <button class="btn pink" data-act="endNight">${ICON.skip} End night now</button>`;
+        ${ctl(`<button class="btn pink" data-act="endNight">${ICON.skip} End night now</button>`)}`;
     }
     case 'morning': {
       const v = r.morning?.victim;
@@ -681,7 +744,7 @@ function modControl() {
             : script('“Good news! Nobody died last night. Someone must have been protected…”')}
         ${r.morning?.hunch ? script(`“The village’s hunch… most of you suspected <b>${r.morning.hunch.ids.map(pname).join(' and ')}</b> last night. Hmm…”`) : ''}
         ${r.morning?.rumor ? `<p class="banner">🗝️ Rumor sent privately to <b>${pname(r.morning.rumor)}</b>. Don't say who!</p>` : ''}
-        <button class="btn sun" data-act="day">${ICON.sun} Start the debate</button>`;
+        ${ctl(`<button class="btn sun" data-act="day">${ICON.sun} Start the debate</button>`)}`;
     }
     case 'day':
       return `<h2>Debate time 🗣️</h2>
@@ -689,20 +752,20 @@ function modControl() {
         <div class="row wrap"><div class="field"><label>Votes per player this round</label>
           <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div></div>
           <p class="muted small" style="flex:1;min-width:180px">Each player can vote for up to this many different people. Most votes is out, and a tie means nobody is out.</p></div>
-        <button class="btn" data-act="openVote">${ICON.vote} Open voting</button>`;
+        ${ctl(`<button class="btn" data-act="openVote">${ICON.vote} Open voting</button>`)}`;
     case 'vote': {
       const votes = nowVotes().filter((v) => pl(v.uid)?.alive && (v.targets || []).length);
       return `<h2>Voting 🗳️</h2>
         <p class="muted">${votes.length} of ${alive().length} have voted · ${votesEach()} vote${votesEach() > 1 ? 's' : ''} each</p>
         ${script(votesEach() > 1 ? `“Voting is open on your phones! Everyone gets ${votesEach()} votes. Choose wisely!”` : '“Voting is open on your phones. Choose wisely!”')}
-        <button class="btn pink" data-act="closeVote" ${votes.length ? '' : ''}>${ICON.check} Close voting</button>`;
+        ${ctl(`<button class="btn pink" data-act="closeVote">${ICON.check} Close voting</button>`)}`;
     }
     case 'verdict': {
       const vd = r.verdict || {};
       return `<h2>Verdict ⚖️</h2>
         ${vd.out ? script(`“The village has spoken… <b>${pname(vd.out)}</b> is out! They were a <b>${G.ROLES[S.mod?.roles?.[vd.out]]?.name}</b>.”`)
                  : script(vd.noVotes ? '“Nobody voted, so nobody leaves today.”' : '“It’s a tie! Nobody leaves the village today.”')}
-        <button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`;
+        ${ctl(`<button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`)}`;
     }
     case 'ended':
       return `${winHero()}<button class="btn mint" data-act="again">${ICON.refresh} Play again with same players</button>`;
@@ -913,13 +976,70 @@ async function saveBrand() {
   toast('Saved! Everyone will see the new look ✨');
 }
 
+// ═════════════════════════ automatic game master ═════════════════════════
+// Runs in the moderator's browser (there is no server). It checks the clock a
+// few times a second and moves the game on when a phase's time is up.
+const STEP = { roles: () => startNight(), night: () => resolveNightNow(), morning: () => startDay(), day: () => openVote(), vote: () => closeVote(), verdict: () => startNight() };
+
+async function advance(r, why) {
+  const key = `${r.game}|${r.round}|${r.phase}|${r.dealtAt || ''}`;
+  if (S.advanced === key) return;
+  S.advanced = key;
+  try { await STEP[r.phase]?.(); }
+  catch (e) { S.advanced = null; console.error('auto', why, e); }
+}
+
+async function autoStep() {
+  const r = room();
+  if (!S.isMod || !S.mod || S.busy || S.autoBusy || r.pausedLeft != null) return;
+  S.autoBusy = true;
+  try {
+    if (r.phase === 'lobby') return await autoStart(r);
+    if (r.phase === 'ended' || !r.phaseEndsAt) return;
+    let due = Date.now() >= r.phaseEndsAt;
+    if (!due && r.phase === 'vote' && isAuto() && r.settings?.voteEarly !== false) {
+      const need = votesEach();
+      const al = alive();
+      due = al.length > 0 && al.every((p) => (nowVotes().find((v) => v.uid === p.id)?.targets || []).length >= need);
+    }
+    if (!due || (!isAuto() && r.phase !== 'night')) return;
+    await advance(r, 'timer');
+  } finally { S.autoBusy = false; }
+}
+
+// with a planned player count, the game starts itself 10s after everyone joins
+async function autoStart(r) {
+  const plan = planned();
+  if (!isAuto() || !plan) { if (r.autoStartAt) await S.be.update(P(), { autoStartAt: null }); return; }
+  const ready = S.players.length >= plan && !G.validateRoles(S.players.length, roleCounts());
+  if (ready && !r.autoStartAt) return S.be.update(P(), { autoStartAt: Date.now() + 10000 });
+  if (!ready && r.autoStartAt) return S.be.update(P(), { autoStartAt: null });
+  if (ready && Date.now() >= r.autoStartAt) {
+    const key = `${r.game}|start`;
+    if (S.advanced === key) return;
+    S.advanced = key;
+    await dealRoles();
+  }
+}
+
+// a clock in a Web Worker keeps ticking even when the moderator's tab is in the
+// background (browsers slow down normal timers in hidden tabs)
+function startClock() {
+  if (S.clock) return;
+  try {
+    const url = URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 500)'], { type: 'text/javascript' }));
+    S.clock = new Worker(url);
+    S.clock.onmessage = () => tick();
+  } catch { /* the normal timer still works */ }
+}
+
 // ═════════════════════════ timer ═════════════════════════
 function tick() {
   if (S.view !== 'game') return;
   const r = room();
   if (r.phase === 'night') {
     const left = secsLeft();
-    const total = r.settings?.nightSeconds || 45;
+    const total = timeFor('night');
     document.querySelectorAll('[data-ring]').forEach((el) => {
       const num = el.querySelector('[data-countdown]');
       if (num.textContent !== String(left)) {
@@ -930,8 +1050,18 @@ function tick() {
       el.classList.toggle('urgent', left <= 5);
     });
     if (left > 0 && left <= 5 && left !== S.lastTick) { S.lastTick = left; SND.play('tick'); }
-    if (S.isMod && left <= 0) resolveNightNow();
   }
+  // every other countdown on screen (timer text + progress bars)
+  const now = Date.now();
+  document.querySelectorAll('[data-timer][data-end]').forEach((el) => {
+    const t = fmt(Math.max(0, Math.ceil((+el.dataset.end - now) / 1000)));
+    if (el.textContent !== t) el.textContent = t;
+  });
+  document.querySelectorAll('[data-tbar]').forEach((el) => {
+    const left = Math.max(0, (+el.dataset.end - now) / 1000);
+    el.style.transform = `scaleX(${Math.min(1, left / (+el.dataset.total || 1))})`;
+  });
+  if (S.isMod) autoStep();
 }
 setInterval(tick, 250);
 
@@ -993,6 +1123,7 @@ function enterRoom(code, isMod) {
   }));
   S.subs.push(S.be.watchCol(`${base}/votes`, (list) => { S.votes = list; render(); }));
   if (isMod) {
+    startClock();
     S.subs.push(S.be.watchCol(`${base}/actions`, (list) => { S.actions = list; processSeer(); render(); }));
     S.subs.push(S.be.watch(`${base}/secrets/_mod`, (d) => { S.mod = d; render(); }));
   } else {
@@ -1055,7 +1186,8 @@ async function createRoom() {
   for (let i = 0; i < 6; i++) { code = G.makeCode(); if (!(await S.be.get(`rooms/${code}`))) break; }
   await S.be.set(`rooms/${code}`, {
     moderatorUid: S.uid, phase: 'lobby', game: 1, round: 0, createdAt: Date.now(),
-    settings: { wolves: 2, doctors: 1, seers: 1, nightSeconds: 45, votesPerPlayer: 1, hunch: false, rumor: false },
+    settings: { wolves: 2, doctors: 1, seers: 1, votesPerPlayer: 1, hunch: false, rumor: false, auto: true, voteEarly: true,
+      times: { roles: 20, night: 45, morning: 10, day: 120, vote: 45, verdict: 10 } },
   });
   await S.be.set(`rooms/${code}/secrets/_mod`, { roles: {}, log: [{ t: Date.now(), text: '🏡 Room created. Waiting for villagers…' }] });
   enterRoom(code, true);
@@ -1078,14 +1210,14 @@ async function dealRoles() {
   const names = (role) => ps.filter((p) => roles[p.id] === role).map((p) => esc(p.name)).join(', ');
   ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles, lastProtected: {}, seer: {}, log: [
     { t: Date.now(), text: `🎲 Roles dealt at random. 🐺 Wolves: <b>${names('werewolf')}</b> · 🛡️ Doctor: <b>${names('doctor') || 'none'}</b> · 🔮 Seer: <b>${names('seer') || 'none'}</b>` }] } });
-  ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null, dealtAt: Date.now() } });
+  ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null, dealtAt: Date.now(), phaseEndsAt: endsFor('roles'), pausedLeft: null, autoStartAt: null } });
   await S.be.batch(ops);
 }
 
 async function startNight() {
   const r = room();
   const round = r.round + 1;
-  const ops = [{ type: 'update', path: P(), data: { phase: 'night', round, nightEndsAt: Date.now() + (r.settings.nightSeconds || 45) * 1000, morning: null, verdict: null } }];
+  const ops = [{ type: 'update', path: P(), data: { phase: 'night', round, phaseEndsAt: endsFor('night'), pausedLeft: null, nightEndsAt: null, morning: null, verdict: null } }];
   const roles = S.mod?.roles || {};
   for (const b of S.players.filter((p) => p.bot && p.alive)) {
     const a = G.botNightAction(b, roles[b.id], S.players, roles, lastFor(b.id));
@@ -1168,7 +1300,7 @@ async function resolveNightNow() {
     if (winner) ops.push(...revealAllOps(roles, res.victim ? { [res.victim]: { alive: false } } : {}));
     S.mod.lastProtected = newLast;
     ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
-    ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null } });
+    ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null, phaseEndsAt: winner ? null : endsFor('morning'), pausedLeft: null } });
     await S.be.batch(ops);
   } catch (e) {
     S.resolving = null;
@@ -1176,9 +1308,13 @@ async function resolveNightNow() {
   }
 }
 
+async function startDay() {
+  await S.be.update(P(), { phase: 'day', phaseEndsAt: endsFor('day'), pausedLeft: null });
+}
+
 async function openVote() {
   const r = room(); const roles = S.mod?.roles || {};
-  const ops = [{ type: 'update', path: P(), data: { phase: 'vote' } }];
+  const ops = [{ type: 'update', path: P(), data: { phase: 'vote', phaseEndsAt: endsFor('vote'), pausedLeft: null } }];
   for (const b of S.players.filter((p) => p.bot && p.alive)) {
     const targets = G.botVote(b, roles[b.id], S.players, roles, votesEach());
     if (targets.length) ops.push({ type: 'set', path: P(`/votes/${r.game}_${r.round}_${b.id}`), data: { game: r.game, round: r.round, uid: b.id, targets } });
@@ -1197,7 +1333,7 @@ async function closeVote() {
   if (t.out) ops.push({ type: 'update', path: P(`/players/${t.out}`), data: { alive: false, role: roles[t.out] } });
   if (winner) ops.push(...revealAllOps(roles, t.out ? { [t.out]: { alive: false } } : {}));
   ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
-  ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'verdict', verdict: { out: t.out, tie: t.tie, noVotes: !!t.noVotes, round: r.round }, winner: winner || null } });
+  ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'verdict', verdict: { out: t.out, tie: t.tie, noVotes: !!t.noVotes, round: r.round }, winner: winner || null, phaseEndsAt: winner ? null : endsFor('verdict'), pausedLeft: null } });
   await S.be.batch(ops);
 }
 
@@ -1205,7 +1341,7 @@ async function playAgain() {
   const r = room();
   const ops = S.players.map((p) => ({ type: 'update', path: P(`/players/${p.id}`), data: { alive: true, role: null } }));
   ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles: {}, seer: {}, lastProtected: {}, log: [{ t: Date.now(), text: `🔁 New game #${r.game + 1}. Same villagers, new secrets!` }] } });
-  ops.push({ type: 'update', path: P(), data: { phase: 'lobby', game: r.game + 1, round: 0, morning: null, verdict: null, winner: null } });
+  ops.push({ type: 'update', path: P(), data: { phase: 'lobby', game: r.game + 1, round: 0, morning: null, verdict: null, winner: null, phaseEndsAt: null, pausedLeft: null, autoStartAt: null } });
   await S.be.batch(ops);
 }
 
@@ -1355,12 +1491,37 @@ const ACT = {
     if (w > G.maxWolves(n) && +d.d > 0 && n >= G.MIN_PLAYERS) toast(`Max ${G.maxWolves(n)} werewolves for ${n} players`);
     guarded(() => S.be.update(P(), { 'settings.wolves': w }));
   },
-  nightSecs: (d) => guarded(() => S.be.update(P(), { 'settings.nightSeconds': +d.s })),
-  toggleSetting: (d) => (d.k === 'plan' ? ACT.togglePlan() : guarded(() => S.be.update(P(), { [`settings.${d.k}`]: !room().settings?.[d.k] }))),
+  nightSecs: (d) => guarded(() => S.be.update(P(), { 'settings.times.night': +d.s })),
+  toggleSetting: (d) => {
+    if (d.k === 'plan') return ACT.togglePlan();
+    const onByDefault = ['auto', 'voteEarly'].includes(d.k);
+    const cur = onByDefault ? room().settings?.[d.k] !== false : !!room().settings?.[d.k];
+    const ops = { [`settings.${d.k}`]: !cur };
+    // switching to automatic mid-game: give the current phase a fresh timer
+    if (d.k === 'auto' && !cur && NEXT_NAME[room().phase] && !room().phaseEndsAt) ops.phaseEndsAt = Date.now() + timeFor(room().phase) * 1000;
+    guarded(() => S.be.update(P(), ops));
+  },
+  timer: (d) => guarded(() => S.be.update(P(), { [`settings.times.${d.k}`]: +d.s })),
+  pause: () => guarded(() => {
+    const r = room();
+    if (!r.phaseEndsAt) return;
+    return S.be.update(P(), { pausedLeft: Math.max(0, r.phaseEndsAt - Date.now()), phaseEndsAt: null });
+  }),
+  resume: () => guarded(() => S.be.update(P(), { phaseEndsAt: Date.now() + (room().pausedLeft || 0), pausedLeft: null })),
+  extend: () => guarded(() => {
+    const r = room();
+    if (r.pausedLeft != null) return S.be.update(P(), { pausedLeft: r.pausedLeft + 30000 });
+    return S.be.update(P(), { phaseEndsAt: (r.phaseEndsAt || Date.now()) + 30000 });
+  }),
+  skip: () => guarded(async () => {
+    const r = room();
+    if (r.pausedLeft != null) await S.be.update(P(), { pausedLeft: null });
+    await advance({ ...r, pausedLeft: null }, 'skip');
+  }),
   deal: () => guarded(dealRoles),
   night: () => guarded(startNight),
   endNight: () => guarded(resolveNightNow),
-  day: () => guarded(() => S.be.update(P(), { phase: 'day' })),
+  day: () => guarded(startDay),
   openVote: () => guarded(openVote),
   closeVote: () => guarded(closeVote),
   again: () => guarded(playAgain),
