@@ -224,7 +224,7 @@ function draw() {
   }
   // Most database updates (someone else's vote or night pick) don't change what THIS
   // screen shows. If the markup is identical, skip the parse + compare entirely.
-  const full = html + (S.ui.sheet ? viewSheet() : '');
+  const full = html + (S.ui.sheet ? viewSheet() : '') + (S.ui.confirm ? viewConfirm() : '');
   if (full === draw.lastHtml && $app.firstChild) { tick(); return; }
   draw.lastHtml = full;
   const next = document.createElement('div');
@@ -556,6 +556,40 @@ function pEnded() {
     <div class="card stack"><h3>Everyone's secret roles</h3>${rolesList()}</div>
     <p class="center muted">The moderator can start a new game. Stay here!</p>
     <button class="btn ghost small" style="margin:0 auto;display:flex" data-act="leave">Leave</button></div>`;
+}
+
+// ── in-app "are you sure?" dialog (the browser's confirm() is blocked in some viewers) ──
+function askConfirm(opts) {
+  return new Promise((resolve) => {
+    S.ui.confirm = opts;
+    S.confirmResolve = resolve;
+    render();
+    setTimeout(() => document.querySelector('.confirm [data-act=confirmCancel]')?.focus(), 60);
+  });
+}
+function closeConfirm(answer) {
+  const done = () => {
+    const resolve = S.confirmResolve;
+    S.ui.confirm = null; S.confirmResolve = null;
+    render(); resolve?.(answer);
+  };
+  const bg = document.querySelector('.confirm-bg');
+  if (!bg || bg.classList.contains('closing')) return done();
+  bg.classList.add('closing');                    // exit is quicker than the entrance
+  setTimeout(done, 150);
+}
+function viewConfirm() {
+  const c = S.ui.confirm;
+  return `<div class="confirm-bg" data-act="confirmCancel">
+    <div class="confirm" data-act="noop" role="alertdialog" aria-modal="true" aria-labelledby="cf-t" aria-describedby="cf-d">
+      <div class="cf-ico" aria-hidden="true">${c.icon || '⚠️'}</div>
+      <h3 id="cf-t">${c.title}</h3>
+      <p id="cf-d">${c.text}</p>
+      <div class="cf-btns">
+        <button class="btn ghost small" data-act="confirmCancel">${c.cancel || 'Cancel'}</button>
+        <button class="btn small ${c.danger ? 'pink' : ''}" data-act="confirmOk">${c.ok}</button>
+      </div>
+    </div></div>`;
 }
 
 function viewSheet() {
@@ -1406,7 +1440,24 @@ const ACT = {
   join: () => guarded(joinGame),
   pickAv: (d) => { S.ui.avatar = +d.i; drawAvGrid(); },
   leave: async () => {
-    if (S.isMod) return leave(true);
+    if (S.isMod) {
+      const r = room();
+      if (!['lobby', 'ended'].includes(r.phase)) {
+        // the admin page runs the game: leaving it would freeze everyone's screens
+        const timed = !!r.phaseEndsAt && r.pausedLeft == null;
+        const yes = await askConfirm({
+          icon: '🛑',
+          title: 'Leave the running game?',
+          text: `Your admin page runs this game, so nothing moves on while you're on Admin home.${timed ? ' The game will be <b>paused</b> for everyone.' : ''} Press <b>Resume game</b> on Admin home to come back.`,
+          ok: timed ? '⏸ Pause & leave' : 'Leave game',
+          cancel: 'Stay in the game',
+          danger: true,
+        });
+        if (!yes) return;
+        if (timed) { try { await S.be.update(P(), { pausedLeft: Math.max(0, r.phaseEndsAt - Date.now()), phaseEndsAt: null }); } catch {} }
+      }
+      return leave(true);
+    }
     if (room().phase === 'lobby' && me()) { try { await S.be.del(P(`/players/${S.uid}`)); } catch {} }
     leave();
   },
@@ -1430,10 +1481,23 @@ const ACT = {
     await S.be.update('app/secret', { pin });
     S.ui.newPin = ''; toast('PIN changed 🔐');
   }),
-  lockDevice: () => guarded(async () => {
-    await S.be.del(`admins/${S.uid}`);
-    store.clear(); S.view = 'adminLogin';
-  }),
+  lockDevice: async () => {
+    const live = S.lastRoom && !['lobby', 'ended'].includes(S.lastRoom.phase);
+    const yes = await askConfirm({
+      icon: '🔒',
+      title: 'Sign out of admin on this device?',
+      text: `You'll need the <b>admin PIN</b> to sign back in.${live ? ` Your game <b>${esc(S.lastRoom.code)}</b> is still in progress and stays frozen until you sign back in and press <b>Resume game</b>.` : ''}`,
+      ok: 'Sign out',
+      cancel: 'Stay signed in',
+      danger: true,
+    });
+    if (!yes) return;
+    // keep the session so "Resume game" is still there after signing back in
+    guarded(async () => { await S.be.del(`admins/${S.uid}`); S.view = 'adminLogin'; });
+  },
+  confirmOk: () => closeConfirm(true),
+  confirmCancel: () => closeConfirm(false),
+  noop: () => {},
   vpp: (d) => {
     const v = Math.min(3, Math.max(1, (room().settings?.votesPerPlayer ?? 1) + +d.d));
     guarded(() => S.be.update(P(), { 'settings.votesPerPlayer': v }));
@@ -1531,7 +1595,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const fn = ACT[el.dataset.act];
-  if (!['pick', 'flip', 'sound', 'pickAv', 'closeSheet'].includes(el.dataset.act)) SND.play('tap');
+  if (!['pick', 'flip', 'sound', 'pickAv', 'closeSheet', 'noop'].includes(el.dataset.act)) SND.play('tap');
   if (el.dataset.act === 'pickAv') SND.play('select');
   if (fn) { e.preventDefault(); fn(el.dataset, el); }
 });
@@ -1556,6 +1620,7 @@ document.addEventListener('change', async (e) => {
   } catch { toast("Couldn't read that picture 🖼️"); }
 });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && S.ui.confirm) { closeConfirm(false); return; }
   if (e.key === 'Enter' && e.target.matches('input')) {
     if (S.view === 'join') ACT.join();
     if (S.view === 'adminLogin') ACT.adminLogin();
