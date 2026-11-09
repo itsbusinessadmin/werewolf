@@ -52,7 +52,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 1. The moderator opens **admin.html** on a **laptop**. The first visitor ever creates the admin PIN; later devices type it once. Then click **Create a new game**.
 2. Click **Copy invite for Teams** and paste it into the meeting chat.
 3. Players open the link on their **phones**, type their name and pick a villager.
-4. The moderator picks the number of werewolves, the **votes per player**, the night timer and any **extra clues** (Village hunch, Rumors), then clicks **Deal secret roles**.
+4. The moderator sets the **role mix** (werewolves, doctors, seers), the **votes per player**, the night timer and any **extra clues** (Village hunch, Rumors), then clicks **Deal secret roles**.
 5. Follow the big button and read the 🎙️ script lines out loud:
    **Night** (everyone mutes and turns their camera off) → **Morning** → **Debate** (unmute on Teams) → **Vote** → **Verdict** → next night…
 6. ⚠️ The moderator must **not share their screen**, because it shows every role. Keep the moderator tab open: it runs the game.
@@ -60,7 +60,10 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 ### The rules this app uses
 | Rule | Setting |
 |---|---|
-| Werewolves | Moderator picks 1–4 (the app suggests a number) |
+| Roles | Moderator sets how many **werewolves (1–6)**, **doctors (0–3)** and **seers (0–3)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
+| Dealing | 🎲 **Random**: the app shuffles all players and hands out the roles; nobody (not even the moderator) chooses. **Reshuffle roles** re-deals before night 1 |
+| Several doctors | Each protects one person; anyone protected by any doctor survives. Each doctor can't protect the same person two nights in a row |
+| Several seers | Each gets their own private peek every night |
 | Wolves pick different victims | The app picks one of their choices at random 🎲 |
 | Doctor | Can protect themselves, but not the same person 2 nights in a row |
 | Seer | One peek per night, learns "werewolf" or "not a werewolf" |
