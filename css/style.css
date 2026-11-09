@@ -490,3 +490,56 @@ body.theme-day { background: #FDE6EE; }
 .trow > span { width: 130px; font-weight: 800; font-size: 14px; }
 .trow .seg { flex: 1; min-width: 220px; }
 .banner.go { background: #DDF6EC; color: #1E7A5C; }
+
+/* ═════════ character animation ═════════
+   Only big portraits that appear rarely get idle life (role card, home,
+   morning news, debate, game over: the ".anim" containers). Avatars in the
+   grids are things players read and pick from, so they only react when
+   tapped. Every loop rests most of the time and moves briefly. */
+.ch-blink, .ch-lid, .ch-ear-l, .ch-ear-r, .ch-beat, .ch-swirl { transform-box: fill-box; }
+
+/* blink: eyes squash shut for ~120ms every few seconds */
+.anim .ch-blink { transform-origin: 50% 50%; animation: blink 4.8s var(--ease-in-out) infinite; }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(.12); } }
+/* the wolf has real eyelids that drop from the top */
+.anim .ch-lid { transform-origin: 50% 0; animation: lid 5.4s var(--ease-in-out) infinite; }
+@keyframes lid { 0%, 92%, 100% { opacity: 0; transform: scaleY(.2); } 94%, 96% { opacity: 1; transform: scaleY(1); } }
+/* ears twitch from their base, left then right */
+.anim .ch-ear-l { transform-origin: 70% 100%; animation: earL 6.5s var(--ease-in-out) infinite; }
+.anim .ch-ear-r { transform-origin: 30% 100%; animation: earR 6.5s var(--ease-in-out) 1.1s infinite; }
+@keyframes earL { 0%, 84%, 100% { transform: rotate(0); } 87% { transform: rotate(-9deg); } 90% { transform: rotate(1deg); } 93% { transform: rotate(-5deg); } }
+@keyframes earR { 0%, 84%, 100% { transform: rotate(0); } 87% { transform: rotate(9deg); } 90% { transform: rotate(-1deg); } 93% { transform: rotate(5deg); } }
+/* doctor's heart: a double beat, then rest */
+.anim .ch-beat { transform-origin: 50% 50%; animation: beat 2.6s var(--ease-out) infinite; }
+@keyframes beat { 0%, 30%, 100% { transform: scale(1); } 7% { transform: scale(1.16); } 14% { transform: scale(1); } 21% { transform: scale(1.1); } }
+/* seer's crystal ball breathes light; the swirl inside drifts */
+.anim .ch-glow { animation: glowball 3.2s ease-in-out infinite alternate; }
+@keyframes glowball { from { opacity: .45; } to { opacity: .9; } }
+.anim .ch-swirl { transform-origin: -2px -2px; animation: swirl 6s linear infinite; }   /* constant motion → linear */
+@keyframes swirl { to { transform: rotate(1turn); } }
+/* sparkles twinkle (opacity only: their position lives in an SVG transform attribute) */
+.anim .ch-spark { animation: spark 2.8s ease-in-out infinite; }
+.anim .ch-spark:nth-of-type(2n) { animation-delay: .9s; }
+.anim .ch-spark:nth-of-type(3n) { animation-delay: 1.7s; }
+@keyframes spark { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+/* the whole portrait floats gently (an HTML box: composited, cheap) */
+.art.anim, .big-art.anim, .day-art.anim { animation: float 5s ease-in-out infinite; }
+
+/* tap feedback in the grids: the picked villager hops once */
+.tile.on .av { animation: hop 360ms var(--ease-out); }
+@keyframes hop { 40% { translate: 0 -7px; } 100% { translate: 0 0; } }
+
+/* a death, once: the colour drains, then the ghost floats up out of the avatar */
+.announce .av.dead > svg { animation: drain .8s ease .15s both; }
+@keyframes drain { from { filter: none; } }
+.announce .av.dead .ghostbadge { animation: rise .7s var(--ease-out) .5s both, bob 2.6s ease-in-out 1.2s infinite; }
+@keyframes rise { from { opacity: 0; translate: -18px 18px; scale: .7; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* keep a calm blink-free still; the gray-out stays as a quick fade */
+  .anim .ch-blink, .anim .ch-lid, .anim .ch-ear-l, .anim .ch-ear-r, .anim .ch-beat, .anim .ch-swirl,
+  .art.anim, .big-art.anim, .day-art.anim, .tile.on .av { animation: none !important; }
+  .announce .av.dead .ghostbadge { animation: fade .3s ease both !important; }
+}
+/* the portrait on the back of a face-down card is invisible: don't run it */
+.flip:not(.open) .anim, .flip:not(.open) .anim * { animation-play-state: paused; }
