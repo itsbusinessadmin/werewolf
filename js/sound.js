@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 
 const KEY = 'moonhollow-sound';
-let ctx = null, master, musicBus, sfxBus, verbIn;
+let ctx = null, master, musicBus, sfxBus, verbIn, melBus, drumBus;
 let mode = (() => { try { return localStorage.getItem(KEY) || 'all'; } catch { return 'all'; } })();
 let current = null, wanted = null, nextT = 0, step = 0, timer = null;
 
@@ -15,9 +15,9 @@ const N = (name) => {               // note name → frequency, e.g. 'A4'
   return 440 * Math.pow(2, (semis + (+m[3] - 4) * 12) / 12);
 };
 
-function impulse(seconds) {
-  const len = ctx.sampleRate * seconds;
-  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+function impulse(seconds, c = ctx) {
+  const len = c.sampleRate * seconds;
+  const buf = c.createBuffer(2, len, c.sampleRate);
   for (let c = 0; c < 2; c++) {
     const d = buf.getChannelData(c);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
@@ -25,20 +25,30 @@ function impulse(seconds) {
   return buf;
 }
 
+function buildGraph(c) {
+  master = c.createGain(); master.gain.value = 0.9; master.connect(c.destination);
+  // music: everything passes through musicBus (the 🔊 setting turns it up/down)
+  musicBus = c.createGain(); musicBus.connect(master);
+  drumBus = c.createGain(); drumBus.gain.value = 0.85; drumBus.connect(musicBus);  // drums stay dry & punchy
+  melBus = c.createGain(); melBus.gain.value = 1.8; melBus.connect(musicBus);   // tunes up front, with a little room
+  const mVerb = c.createConvolver(); mVerb.buffer = impulse(1.6, c);
+  const mWet = c.createGain(); mWet.gain.value = 0.22;
+  melBus.connect(mVerb).connect(mWet).connect(musicBus);
+  // sound effects
+  sfxBus = c.createGain(); sfxBus.connect(master);
+  const verb = c.createConvolver(); verb.buffer = impulse(2.8, c);
+  const wet = c.createGain(); wet.gain.value = 0.32;
+  verbIn = c.createGain();
+  verbIn.connect(verb).connect(wet).connect(master);
+  sfxBus.connect(verbIn);
+}
+
 function ensure() {
   if (ctx) return ctx;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   ctx = new AC();
-  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
-  musicBus = ctx.createGain(); musicBus.connect(master);
-  sfxBus = ctx.createGain(); sfxBus.connect(master);
-  const verb = ctx.createConvolver(); verb.buffer = impulse(2.8);
-  const wet = ctx.createGain(); wet.gain.value = 0.32;
-  verbIn = ctx.createGain();
-  verbIn.connect(verb).connect(wet).connect(master);
-  musicBus.connect(verbIn);
-  sfxBus.connect(verbIn);
+  buildGraph(ctx);
   applyMode(true);
   return ctx;
 }
@@ -171,40 +181,83 @@ export function play(name) {
   try { FX[name]?.(); } catch (e) { console.warn('sfx', e); }
 }
 
-// ── background music (generated, loops forever) ──────────────
+// ── background music: two original, playful tunes ─────────────
+// A tiny step sequencer: each song is 16 sixteenth-notes per bar, looping.
+// Instruments are synthesized, so there are no audio files.
+const I = {
+  kick(at, v = 0.32) { tone({ f: 150, to: 42, at, dur: 0.22, vol: v, attack: 0.002, bus: drumBus }); },
+  clap(at, v = 0.07) {
+    for (const d of [0, 0.012, 0.024]) noise({ at: at + d, dur: 0.09, vol: v, f: 1500, q: 0.9, bus: drumBus });
+  },
+  hat(at, v = 0.022) { noise({ at, dur: 0.035, vol: v, type: 'highpass', f: 7500, bus: drumBus }); },
+  shaker(at, v = 0.016) { noise({ at, dur: 0.06, vol: v, type: 'highpass', f: 5200, bus: drumBus }); },
+  block(at, f = 900, v = 0.05) { tone({ f, at, dur: 0.07, vol: v, attack: 0.001, bus: drumBus }); tone({ f: f * 2.4, at, dur: 0.03, vol: v * 0.4, attack: 0.001, bus: drumBus }); },
+  // plucky round bass (a cartoon double-bass pizzicato)
+  bass(at, n, len = 0.22, v = 0.11) {
+    tone({ f: N(n), type: 'triangle', at, dur: len, vol: v, attack: 0.004, lp: 700, bus: melBus });
+    tone({ f: N(n) / 2, type: 'sine', at, dur: len * 0.9, vol: v * 0.55, attack: 0.004, bus: melBus });
+  },
+  // marimba-ish pluck for the melody
+  pluck(at, n, len = 0.28, v = 0.06) {
+    tone({ f: N(n), type: 'sine', at, dur: len, vol: v, attack: 0.002, bus: melBus });
+    tone({ f: N(n) * 4, type: 'sine', at, dur: len * 0.25, vol: v * 0.25, attack: 0.001, bus: melBus });
+  },
+  // ukulele-ish chord stab
+  strum(at, notes, v = 0.03) { notes.forEach((n, i) => tone({ f: N(n), type: 'triangle', at: at + i * 0.012, dur: 0.18, vol: v, attack: 0.003, lp: 2600, bus: melBus })); },
+  // a soft whistle for the day tune
+  whistle(at, n, len = 0.3, v = 0.035) { tone({ f: N(n), type: 'sine', at, dur: len, vol: v, attack: 0.03, bus: melBus }); },
+  // a playful ghostly "wooo" slide (night spice)
+  boo(at) { tone({ f: N('E5'), to: N('A4'), type: 'sine', at, dur: 0.7, vol: 0.03, attack: 0.08, bus: melBus }); },
+};
+// parse "A2 . E2 . | ..." into arrays of 16 steps per bar ('.' = rest, '-' = hold)
+const bars = (str) => str.split('|').map((b) => b.trim().split(/\s+/));
+
 const SONGS = {
-  // soft, mysterious night: A-minor pad, music-box notes, crickets, owls
+  // 🌙 "Tiptoe Through Moonhollow": sneaky, bouncy, a little spooky (A minor, swing)
   night: {
-    step: 0.5,
-    chords: [['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['C3', 'G3', 'E4'], ['G3', 'B3', 'D4']],
+    bpm: 108, swing: 0.16, bars: 8,
+    bass: bars(`A2 . . . E2 . . . A2 . . . C3 . E2 . | F2 . . . C3 . . . F2 . . . A2 . C3 . |
+                D2 . . . A2 . . . D2 . . . F2 . A2 . | E2 . . . B2 . . . E2 . G#2 . B2 . E2 .`),
+    lead: bars(`E5 . . E5 F5 . E5 . . . C5 . . . . . | D5 . . D5 E5 . D5 . . . A4 . . . . . |
+                F5 . . F5 E5 . D5 . C5 . . B4 . . . . | B4 . C5 . D5 . . . E5 . . . . . . . |
+                E5 . . E5 F5 . E5 . . . C5 . A4 . . . | D5 . . F5 E5 . D5 . C5 . . A4 . . . . |
+                F5 . E5 . D5 . C5 . B4 . . G#4 . . . . | A4 . . . . . . . . . . . . . . .`),
     play(s, at) {
-      if (s % 8 === 0) {
-        const ch = this.chords[(s / 8) % 4];
-        ch.forEach((n, i) => {
-          tone({ f: N(n), at, dur: 4.6, vol: 0.035, type: 'triangle', attack: 1.3, lp: 900, bus: musicBus, detune: i * 4 });
-          tone({ f: N(n) / 2, at, dur: 4.6, vol: 0.02, type: 'sine', attack: 1.6, bus: musicBus });
-        });
-      }
-      const pent = ['A4', 'C5', 'D5', 'E5', 'G5', 'A5'];
-      if (Math.random() < 0.28) tone({ f: N(pent[(Math.random() * pent.length) | 0]), at, dur: 1.6, vol: 0.035, type: 'sine', bus: musicBus });
-      if (Math.random() < 0.18) for (let i = 0; i < 4; i++) tone({ f: 4300 + Math.random() * 200, at: at + i * 0.045, dur: 0.03, vol: 0.006, bus: musicBus });
-      if (s % 37 === 20) { tone({ f: 390, to: 370, at, dur: 0.45, vol: 0.03, bus: musicBus, attack: 0.08 }); tone({ f: 380, to: 350, at: at + 0.55, dur: 0.7, vol: 0.03, bus: musicBus, attack: 0.08 }); }
+      const st = this.stepLen, i = s % 16, bar = Math.floor(s / 16) % this.bars;
+      if (i % 2) at += st * this.swing;                        // swing the off-beats
+      if (i === 0 || i === 8) I.kick(at, 0.2);
+      if (i === 4 || i === 12) I.block(at, 1050, 0.045);      // tick…
+      if (i === 6 || i === 14) I.block(at, 760, 0.035);       // …tock
+      if (i % 2 === 0) I.hat(at, 0.012);
+      const b = this.bass[bar % 4][i]; if (b && b !== '.') I.bass(at, b, 0.2, 0.1);
+      const n = this.lead[bar][i]; if (n && n !== '.') I.pluck(at, n, 0.26, 0.05);
+      if (bar === 7 && i === 8) I.boo(at);                      // a little ghost every 8 bars
     },
   },
-  // cheerful village morning: C-major plucks, bass, birds
+  // ☀️ "Village Fair": sunny, bouncy, whistle-able (C major, I–vi–IV–V)
   day: {
-    step: 0.3,
-    chords: [['C4', 'E4', 'G4', 'C5'], ['A3', 'C4', 'E4', 'A4'], ['F3', 'A3', 'C4', 'F4'], ['G3', 'B3', 'D4', 'G4']],
-    pattern: [0, 2, 1, 3, 2, 1, 3, 2],
+    bpm: 120, swing: 0.1, bars: 8,
+    chords: [['C4', 'E4', 'G4'], ['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['G3', 'B3', 'D4']],
+    bass: bars(`C3 . . . G2 . C3 . . . G2 . C3 . E3 . | A2 . . . E2 . A2 . . . E2 . A2 . C3 . |
+                F2 . . . C3 . F2 . . . C3 . F2 . A2 . | G2 . . . D3 . G2 . . . B2 . G2 . D3 .`),
+    lead: bars(`E5 . G5 . A5 . G5 . E5 . . . C5 . D5 . | E5 . . . E5 . D5 . C5 . . . A4 . . . |
+                F5 . . . A5 . . . G5 . F5 . E5 . . . | D5 . . . E5 . F5 . G5 . . . . . . . |
+                E5 . G5 . A5 . G5 . E5 . . . C5 . D5 . | E5 . . . E5 . D5 . C5 . A4 . C5 . . . |
+                F5 . E5 . D5 . . . B4 . . . D5 . . . | C5 . . . . . . . G5 . E5 . C5 . . .`),
     play(s, at) {
-      const ch = this.chords[Math.floor(s / 8) % 4];
-      if (s % 8 === 0) tone({ f: N(ch[0]) / 2, at, dur: 2.2, vol: 0.06, type: 'sine', attack: 0.02, bus: musicBus });
-      if (s % 16 < 14 || Math.random() < 0.5) tone({ f: N(ch[this.pattern[s % 8]]), at, dur: 0.5, vol: 0.04, type: 'triangle', bus: musicBus });
-      if (s % 32 === 28) tone({ f: N(ch[3]) * 2, at, dur: 0.9, vol: 0.025, bus: musicBus });
-      if (Math.random() < 0.05) for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) tone({ f: 2400 + Math.random() * 600, to: 3600, at: at + i * 0.11, dur: 0.07, vol: 0.012, bus: musicBus });
+      const st = this.stepLen, i = s % 16, bar = Math.floor(s / 16) % this.bars;
+      if (i % 2) at += st * this.swing;
+      if (i === 0 || i === 8 || i === 10) I.kick(at, i === 10 ? 0.16 : 0.26);
+      if (i === 4 || i === 12) I.clap(at);
+      if (i % 2 === 0) I.hat(at, 0.02); else I.shaker(at);
+      if (i === 2 || i === 6 || i === 10 || i === 14) I.strum(at, this.chords[bar % 4]);
+      const b = this.bass[bar % 4][i]; if (b && b !== '.') I.bass(at, b, 0.18, 0.11);
+      const n = this.lead[bar][i];
+      if (n && n !== '.') (bar < 4 ? I.pluck(at, n, 0.24, 0.055) : I.whistle(at, n, 0.28, 0.04));
     },
   },
 };
+for (const song of Object.values(SONGS)) song.stepLen = 60 / song.bpm / 4;   // one sixteenth note
 
 function startMusic(name) {
   current = name;
@@ -218,7 +271,7 @@ function pump() {
   const song = SONGS[current];
   while (nextT < ctx.currentTime + 0.5) {
     try { song.play(step, nextT - ctx.currentTime); } catch {}
-    nextT += song.step; step++;
+    nextT += song.stepLen; step++;
   }
 }
 
@@ -235,4 +288,17 @@ export function cycleMode() {
   ensure(); applyMode();
   if (mode === 'all' && ctx) { ctx.resume(); startMusic(wanted); }
   return mode;
+}
+
+/** Render a song to raw audio offline (for exporting a preview). */
+export async function renderPreview(name, seconds = 20, rate = 44100) {
+  const saved = { ctx, master, musicBus, sfxBus, verbIn, melBus, drumBus, mode };
+  const off = new OfflineAudioContext(2, Math.ceil(seconds * rate), rate);
+  ctx = off; mode = 'all';
+  buildGraph(off); musicBus.gain.value = 0.85;
+  const song = SONGS[name];
+  for (let t = 0.05, k = 0; t < seconds - 0.5; t += song.stepLen, k++) song.play(k, t);
+  const buf = await off.startRendering();
+  ({ ctx, master, musicBus, sfxBus, verbIn, melBus, drumBus, mode } = saved);
+  return [buf.getChannelData(0), buf.getChannelData(1)];
 }
