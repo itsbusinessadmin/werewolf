@@ -464,3 +464,29 @@ body.theme-day { background: #FDE6EE; }
 .joinbar div { height: 100%; background: linear-gradient(90deg, var(--mint), #6FD8B4); border-radius: inherit; transform-origin: left;
   transition: transform .4s var(--ease-out); }
 .planrow > .small { margin-bottom: 10px; }
+
+/* ───────── automatic mode: timers & countdown bars ───────── */
+.phasebar { margin: -4px 0 14px; padding: 10px 14px 12px; border-radius: 18px; background: rgba(255,255,255,.12); font-weight: 700; font-size: 14px; }
+.theme-day .phasebar { background: rgba(255,255,255,.75); box-shadow: 0 1px 3px rgba(46,37,69,.08); }
+.phasebar b { font-family: var(--font-h); font-size: 16px; font-variant-numeric: tabular-nums; }
+.phasebar.paused { text-align: center; background: rgba(255,212,94,.22); }
+.phasebar.go { text-align: center; background: linear-gradient(135deg, #3DBF95, #2FA982); color: #fff; }
+.pb { height: 6px; border-radius: 999px; background: rgba(46,37,69,.10); overflow: hidden; margin-top: 8px; }
+.theme-night .pb { background: rgba(255,255,255,.14); }
+.pb i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #FFC94D, #FF9F6B); transform-origin: left;
+  transition: transform .5s linear; }            /* constant countdown → linear, composite-only */
+
+.autobar { border-radius: 20px; padding: 14px 16px; background: #F4F1FE; display: grid; gap: 10px; }
+.autobar.paused { background: #FFF6D8; }
+.ab-time { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ab-time small { font-weight: 800; color: var(--ink-soft); }
+.ab-time b { font-family: var(--font-h); font-size: 30px; color: var(--purple-d); font-variant-numeric: tabular-nums; }
+.autobar .pb { margin-top: 0; background: #E4DEF8; }
+.ab-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ab-btns .btn:last-child { margin-left: auto; }
+
+.timers { display: grid; gap: 8px; margin-top: 8px; }
+.trow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.trow > span { width: 130px; font-weight: 800; font-size: 14px; }
+.trow .seg { flex: 1; min-width: 220px; }
+.banner.go { background: #DDF6EC; color: #1E7A5C; }
