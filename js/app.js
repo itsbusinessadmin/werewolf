@@ -59,14 +59,14 @@ function toast(msg) {
   toast.t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-// ⏱ Every phase has a timer the admin sets. In automatic mode the app moves on by itself.
+// Every phase has a timer the admin sets. In automatic mode the app moves on by itself.
 const TIMERS = [
-  { k: 'roles',   label: '🃏 Look at roles', opts: [10, 20, 30, 45],    def: 20 },
-  { k: 'night',   label: '🌙 Night',          opts: [30, 45, 60, 90],    def: 45 },
-  { k: 'morning', label: '☀️ Morning news',   opts: [5, 10, 15, 20],     def: 10 },
-  { k: 'day',     label: '🗣️ Debate',         opts: [60, 120, 180, 300], def: 120 },
-  { k: 'vote',    label: '🗳️ Voting',         opts: [30, 45, 60, 90],    def: 45 },
-  { k: 'verdict', label: '⚖️ Verdict',        opts: [5, 10, 15, 20],     def: 10 },
+  { k: 'roles',   label: 'Look at roles', icon: 'cards', opts: [10, 20, 30, 45],    def: 20 },
+  { k: 'night',   label: 'Night',          icon: 'moon', opts: [30, 45, 60, 90],    def: 45 },
+  { k: 'morning', label: 'Morning news',   icon: 'sun', opts: [5, 10, 15, 20],     def: 10 },
+  { k: 'day',     label: 'Debate',         icon: 'chat', opts: [60, 120, 180, 300], def: 120 },
+  { k: 'vote',    label: 'Voting',         icon: 'vote', opts: [30, 45, 60, 90],    def: 45 },
+  { k: 'verdict', label: 'Verdict',        icon: 'scale', opts: [5, 10, 15, 20],     def: 10 },
 ];
 const NEXT_NAME = { roles: 'Night', night: 'Morning', morning: 'Debate', day: 'Voting', vote: 'Verdict', verdict: 'Night' };
 const NEXT_SAY = { roles: 'Night falls in', morning: 'Debate starts in', day: 'Voting opens in', vote: 'Voting closes in', verdict: 'Night falls in' };
@@ -149,9 +149,9 @@ function toggle(key, title, desc, on) {
 
 function extrasNote() {
   const st = room().settings || {};
-  const on = [st.hunch && '🤔 Village hunch', st.rumor && '🗝️ Rumors'].filter(Boolean);
+  const on = [st.hunch && 'Village hunch', st.rumor && 'Rumors'].filter(Boolean);
   const plan = planned(st);
-  return (plan && room().phase === 'lobby' ? `<p class="small" style="opacity:.85">⏳ <b>${S.players.length} of ${plan}</b> players have joined</p>` : '')
+  return (plan && room().phase === 'lobby' ? `<p class="small" style="opacity:.85"><b>${S.players.length} of ${plan}</b> players have joined</p>` : '')
     + `<p class="small" style="opacity:.85">This game: <b>${roleSummary(roleCounts(st), plan ?? S.players.length)}</b></p>`
     + (on.length ? `<p class="small" style="opacity:.85">Extra clues: <b>${on.join(' · ')}</b></p>` : '');
 }
@@ -162,7 +162,7 @@ function hunchCard() {
   const names = h.ids.map((id) => `<b>${pname(id)}</b>`);
   return `<div class="clue hunch">
     <div class="clue-avs">${h.ids.slice(0, 3).map((id) => av(pl(id)?.avatar, 44, { dead: !pl(id)?.alive })).join('')}</div>
-    <div><small>🤔 Village hunch</small><p>Last night the village suspected ${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0]} the most <span class="muted">(${h.count} of ${h.total} taps)</span>.</p></div>
+    <div><small>${ICON.hunch} Village hunch</small><p>Last night the village suspected ${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0]} the most <span class="muted">(${h.count} of ${h.total} taps)</span>.</p></div>
   </div>`;
 }
 
@@ -170,7 +170,7 @@ function rumorCard() {
   const ids = S.secret?.rumor?.[room().round];
   if (!room().settings?.rumor || !ids || !me()?.alive) return '';
   return `<div class="clue rumor">
-    <div><small>🗝️ A rumor reached only you</small>
+    <div><small>${ICON.key} A rumor reached only you</small>
       <p>A little bird whispered: <b>one of these is a werewolf.</b> Share it carefully!</p></div>
     <div class="clue-row">${ids.map((id) => `<div class="clue-who">${av(pl(id)?.avatar, 48, { dead: !pl(id)?.alive })}<span>${pname(id)}</span></div>`).join('')}</div>
   </div>`;
@@ -251,19 +251,19 @@ function viewHome() {
   </div>
   <div style="height:22px"></div>
   <details class="card glass">
-    <summary style="cursor:pointer;font-weight:800">🐺 How to play (30 seconds)</summary>
+    <summary>How to play <span class="muted">· 30 seconds</span></summary>
     <div class="stack small" style="margin-top:12px">
       <p><b>Two secret teams.</b> A few players are werewolves. Everyone else is the village.</p>
-      <p><b>🌙 Night:</b> the wolves pick someone to gobble, the doctor protects someone, and the seer peeks at someone's role. Everyone taps their phone, so nobody can tell who's who.</p>
-      <p><b>☀️ Day:</b> talk on Teams! Accuse, defend, bluff. Then everyone votes on their phone to kick someone out.</p>
-      <p><b>🏆 Win:</b> the village wins when all wolves are gone. The wolves win when there are as many wolves as villagers.</p>
+      <p><b>Night.</b> the wolves pick someone to gobble, the doctor protects someone, and the seer peeks at someone's role. Everyone taps their phone, so nobody can tell who's who.</p>
+      <p><b>Day.</b> talk on Teams! Accuse, defend, bluff. Then everyone votes on their phone to kick someone out.</p>
+      <p><b>Winning.</b> the village wins when all wolves are gone. The wolves win when there are as many wolves as villagers.</p>
     </div>
   </details>
-  ${S.be?.mode === 'demo' ? `<p class="banner" style="margin-top:14px">🧪 Demo mode: every browser tab is a separate player. Add your Firebase settings in <b>js/config.js</b> to play online with friends.</p>` : ''}`;
+  ${S.be?.mode === 'demo' ? `<p class="banner" style="margin-top:14px"><b>Demo mode.</b> Every browser tab is a separate player. Add your Firebase settings in <b>js/config.js</b> to play online with friends.</p>` : ''}`;
 }
 
 function viewError() {
-  return `<div class="card stack center" style="margin-top:20vh"><h2>Uh-oh 🙀</h2><p class="muted">${esc(S.error)}</p><button class="btn" data-act="reload">${ICON.refresh} Try again</button></div>`;
+  return `<div class="card stack center" style="margin-top:20vh"><h2>Can't reach the village</h2><p class="muted">${esc(S.error)}</p><button class="btn" data-act="reload">${ICON.refresh} Try again</button></div>`;
 }
 
 // ───────── join ─────────
@@ -304,10 +304,10 @@ function watchJoinRoom() {
 function phaseBar() {
   const r = room();
   if (r.phase === 'lobby' && r.autoStartAt && r.pausedLeft == null) {
-    return `<div class="phasebar go"><span>🚀 Everyone's here! The game starts in <b data-timer data-end="${r.autoStartAt}">${fmt(Math.max(0, Math.ceil((r.autoStartAt - Date.now()) / 1000)))}</b></span></div>`;
+    return `<div class="phasebar go"><span>Everyone's here. The game starts in <b data-timer data-end="${r.autoStartAt}">${fmt(Math.max(0, Math.ceil((r.autoStartAt - Date.now()) / 1000)))}</b></span></div>`;
   }
   if (!NEXT_SAY[r.phase]) return '';
-  if (r.pausedLeft != null) return `<div class="phasebar paused"><span>⏸ Paused by the moderator</span></div>`;
+  if (r.pausedLeft != null) return `<div class="phasebar paused"><span>${ICON.pause} Paused by the moderator</span></div>`;
   if (!r.phaseEndsAt) return '';
   const total = timeFor(r.phase), left = secsLeft();
   return `<div class="phasebar"><span>${NEXT_SAY[r.phase]} <b data-timer data-end="${r.phaseEndsAt}">${fmt(left)}</b></span>
@@ -322,7 +322,7 @@ function viewPlayer() {
   const showRole = role && r.phase !== 'lobby';
   const top = `
   <div class="topbar">
-    <span class="chip status"><b class="code">${esc(S.code)}</b><i></i>${['night', 'roles', 'lobby'].includes(r.phase) ? ICON.moon : ICON.sun}${PHASE_LABEL[r.phase] || ''}${r.round ? ` ${r.round}` : ''}</span>
+    <span class="chip status"><b class="code">${esc(S.code)}</b><i></i>${['night', 'roles', 'lobby'].includes(r.phase) ? ICON.moon : ICON.sun}${PHASE_LABEL[r.phase] || ''}${r.round && r.phase !== 'ended' ? ` ${r.round}` : ''}</span>
     <span class="spacer"></span>
     ${showRole ? `<button class="chip role" data-act="peek">${ICON.eye} Role</button>` : ''}
     ${soundBtn()}
@@ -356,7 +356,7 @@ function pLobby() {
   <div class="card stack center">
     <div style="margin:0 auto">${av(m.avatar, 110)}</div>
     <h2>You're in, ${esc(m.name)}!</h2>
-    <p class="muted">${isAuto() && planned() ? 'Hang tight. The game starts by itself as soon as everyone is in.' : 'Hang tight. The game starts as soon as the moderator deals the roles.'} Keep this page open next to Teams. 📱</p>
+    <p class="muted">${isAuto() && planned() ? 'Hang tight. The game starts by itself as soon as everyone is in.' : 'Hang tight. The game starts as soon as the moderator deals the roles.'} Keep this page open next to Teams.</p>
     ${extrasNote()}
   </div>
   <h3 class="section-title">Villagers here <span>${S.players.length}</span></h3>
@@ -369,7 +369,7 @@ function roleBack(role) {
   const partners = (S.secret?.partners || []).map(pname);
   return `<div class="stack" style="--rc:${R.color}">
     <div class="art anim">${ROLE_SVG[role]}</div>
-    <div><span class="teampill" style="--rc:${role === 'werewolf' ? R.color : '#3DBF95'}">${R.team === 'wolves' ? 'Team Wolves 🐺' : 'Team Village 🏡'}</span></div>
+    <div><span class="teampill" style="--rc:${role === 'werewolf' ? R.color : '#3DBF95'}">${R.team === 'wolves' ? 'Team Wolves' : 'Team Village'}</span></div>
     <div class="rolename" style="--rc:${R.color}">${R.name}</div>
     <p class="muted">${R.blurb}</p>
     ${role === 'werewolf' ? `<p><b>${partners.length ? `Your pack: ${partners.join(', ')}` : 'You are the lone wolf!'}</b></p>` : ''}
@@ -378,11 +378,11 @@ function roleBack(role) {
 
 function pRoles() {
   const role = S.secret?.role;
-  if (!role) return `<div class="card center"><p>Shuffling the role cards… 🃏</p></div>`;
+  if (!role) return `<div class="card center"><p>Shuffling the role cards…</p></div>`;
   return `
   <div class="flip ${S.ui.flipped ? 'open' : ''}" data-act="flip">
     <div class="flip-inner">
-      <div class="face front"><div><div class="moonbig"></div><h2>Your secret role</h2><p style="opacity:.8;margin-top:8px">Don't let anyone see your screen 🤫</p><span class="tap-hint">👆 Tap to reveal</span></div></div>
+      <div class="face front"><div><div class="moonbig"></div><h2>Your secret role</h2><p style="opacity:.8;margin-top:8px">Keep your screen to yourself.</p><span class="tap-hint">Tap to reveal</span></div></div>
       <div class="face back">${roleBack(role)}</div>
     </div>
   </div>
@@ -392,7 +392,7 @@ function pRoles() {
 function ghostCard(extra = '') {
   return `<div class="card glass center stack">
     <div style="width:110px;margin:0 auto;animation:bob 2.4s ease-in-out infinite">${GHOST}</div>
-    <h2>You're a ghost 👻</h2>
+    <h2>You're a ghost now</h2>
     <p class="muted">You can watch, but please stay quiet on Teams and don't give hints!</p>${extra}</div>`;
 }
 
@@ -410,9 +410,9 @@ function pNight() {
   switch (role) {
     case 'werewolf':
       title = 'Who will you gobble up tonight?'; color = '#FF6F91';
-      hint = 'If your pack picks different people, the moon decides at random. 🎲';
+      hint = 'If your pack picks different people, the moon decides at random.';
       list = alive(); disabled = (p) => p.id === S.uid || partners.has(p.id);
-      tag = (p) => (p.id === S.uid || partners.has(p.id) ? '🐺 pack' : '');
+      tag = (p) => (p.id === S.uid || partners.has(p.id) ? 'pack' : '');
       break;
     case 'doctor':
       title = 'Who will you protect tonight?'; color = '#3DBF95';
@@ -427,7 +427,7 @@ function pNight() {
       break;
     default:
       title = 'Who do you suspect?'; color = '#FFC94D';
-      hint = 'Everyone taps something at night so nobody can tell who has powers. 🤫';
+      hint = 'Everyone taps something at night so nobody can tell who has powers.';
       list = others;
   }
   const picked = seerResult ? seerResult.target : sel;
@@ -437,10 +437,10 @@ function pNight() {
     <div class="center"><h2>${title}</h2><p class="muted small" style="margin-top:6px">${hint}</p></div>
     ${seerResult ? `<div class="result ${seerResult.isWolf ? 'wolf' : 'safe'}">
         ${av(pl(seerResult.target)?.avatar, 64)}
-        <div><b style="font-size:18px">${pname(seerResult.target)}</b><br/>${seerResult.isWolf ? 'is a <b>WEREWOLF!</b> 🐺' : 'is <b>not</b> a werewolf. 😇'}</div>
+        <div><b style="font-size:18px">${pname(seerResult.target)}</b><br/>${seerResult.isWolf ? 'is a <b>werewolf</b>.' : 'is <b>not</b> a werewolf.'}</div>
       </div>` : ''}
     ${tiles(list, { pick: true, sel: picked, disabled, tag, color })}
-    <p class="center muted small">${seerResult ? 'Your vision is complete for tonight. ✨' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : 'Tap someone to choose.'}</p>
+    <p class="center muted small">${seerResult ? 'That’s your vision for tonight.' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : 'Tap someone to choose.'}</p>
   </div>`;
 }
 
@@ -450,7 +450,7 @@ function pMorning() {
     <div class="card announce">
       <div class="rays"></div>
       <div class="big-art anim">${villagerSVG()}</div>
-      <h2>A peaceful night! ☀️</h2>
+      <h2>A quiet night</h2>
       <p class="muted" style="margin-top:8px">Everyone woke up safe and sound. Maybe the doctor saved someone…</p>
     </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
   const v = pl(mo.victim); const role = v?.role;
@@ -462,21 +462,21 @@ function pMorning() {
       <h2>${isMe ? 'Oh no, it was you!' : `${esc(v?.name)} was gobbled up!`}</h2>
       <p class="muted" style="margin-top:6px">The village found ${isMe ? 'you' : 'them'} at sunrise.</p>
       ${role ? `<div class="stamp" style="--rc:${RC(role)}">They were a ${G.ROLES[role].name}</div>` : ''}
-      ${isMe ? `<p style="margin-top:14px"><b>You're a ghost now 👻</b> Watch quietly and no hints!</p>` : ''}
+      ${isMe ? `<p style="margin-top:14px"><b>You're a ghost now.</b> Watch quietly, no hints.</p>` : ''}
     </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
 }
 
 function graveyard() {
   const dead = S.players.filter((p) => !p.alive);
   if (!dead.length) return '';
-  return `<h3 class="section-title">👻 Ghosts <span>${dead.length}</span></h3>${tiles(dead, { tag: (p) => (p.role ? G.ROLES[p.role].name : '') })}`;
+  return `<h3 class="section-title">Ghosts <span>${dead.length}</span></h3>${tiles(dead, { tag: (p) => (p.role ? G.ROLES[p.role].name : '') })}`;
 }
 
 function pDay() {
   return `
   <div class="card stack center">
     <div class="day-art anim" style="width:140px;margin:0 auto">${villagerSVG()}</div>
-    <h2>Debate time! 🗣️</h2>
+    <h2>Talk it out</h2>
     <p class="muted">Unmute on Teams and talk it out. Who was acting fishy? Who's defending who?</p>
   </div>
   ${rumorCard()}${hunchCard()}
@@ -504,7 +504,7 @@ function pVote() {
     <div class="center"><h2>${m.alive ? 'Who should leave the village?' : 'The village is voting…'}</h2>
       <p class="muted small" style="margin-top:6px">${m.alive
         ? (n > 1 ? `You have <b>${n} votes</b>, one per person. Tap to add or remove.` : 'Tap to vote.') + ' You can change your mind until the moderator closes voting.'
-        : 'Ghosts can watch, but not vote. 👻'}</p></div>
+        : 'Ghosts can watch, but not vote.'}</p></div>
     <div class="row" style="justify-content:center;flex-wrap:wrap">
       <span class="chip" data-pop>${ICON.vote} ${done} of ${voters} voted</span>
       ${m.alive ? `<span class="chip votes-left">${Array.from({ length: n }, (_, i) => `<i class="pip ${i < mine.length ? 'used' : ''}"></i>`).join('')} ${n - mine.length} left</span>` : ''}
@@ -518,7 +518,7 @@ function pVerdict() {
   const vd = room().verdict || {};
   if (!vd.out) return `
     <div class="card announce">
-      <div style="font-size:64px">🤝</div>
+      <div class="tie-art" aria-hidden="true">${ICON.scale}</div>
       <h2>${vd.noVotes ? 'Nobody voted!' : "It's a tie!"}</h2>
       <p class="muted" style="margin-top:6px">Nobody leaves the village today.</p>
     </div>${waiting('Night is coming')}`;
@@ -528,7 +528,7 @@ function pVerdict() {
       <div class="rays" style="--ray:${role === 'werewolf' ? '#FFE7A8' : '#ECE6FF'}"></div>
       <div class="big-av">${av(v?.avatar, 120, { dead: true })}</div>
       <h2>The village voted out ${vd.out === S.uid ? 'you' : esc(v?.name)}!</h2>
-      ${role ? `<div class="stamp" style="--rc:${RC(role)}">${role === 'werewolf' ? 'A WEREWOLF! 🎉' : `Oops, a ${G.ROLES[role].name} 😬`}</div>` : ''}
+      ${role ? `<div class="stamp" style="--rc:${RC(role)}">${role === 'werewolf' ? 'A werewolf!' : `Oops, a ${G.ROLES[role].name}`}</div>` : ''}
     </div>${waiting('Night is coming')}`;
 }
 
@@ -536,7 +536,7 @@ function winHero() {
   const w = room().winner;
   return `<div class="card win stack">
     <div class="art anim">${w === 'wolves' ? ROLE_SVG.werewolf : ROLE_SVG.villager}</div>
-    <h1 style="font-size:36px">${w === 'wolves' ? 'The Werewolves win! 🐺' : 'The Village wins! 🎉'}</h1>
+    <h1 style="font-size:36px">${w === 'wolves' ? 'The werewolves win' : 'The village wins'}</h1>
     <p class="muted">${w === 'wolves' ? 'The wolves out-numbered the village. Awoooo!' : 'Every werewolf has been found. Moonhollow is safe!'}</p>
   </div>`;
 }
@@ -545,7 +545,7 @@ function rolesList() {
   return `<div class="plist">${S.players.map((p) => {
     const role = roleOf(p.id) || p.role;
     return `<div class="prow ${p.alive ? '' : 'dead'}">${av(p.avatar, 42, { dead: !p.alive })}
-      <div class="who"><b>${esc(p.name)}${p.id === S.uid ? ' (you)' : ''}</b><span>${p.alive ? 'Survived' : 'Ghost 👻'}</span></div>
+      <div class="who"><b>${esc(p.name)}${p.id === S.uid ? ' (you)' : ''}</b><span>${p.alive ? 'Survived' : 'Ghost'}</span></div>
       ${role ? `<span class="rtag" style="--rc:${RC(role)}">${G.ROLES[role].name}</span>` : ''}</div>`;
   }).join('')}</div>`;
 }
@@ -582,7 +582,7 @@ function viewConfirm() {
   const c = S.ui.confirm;
   return `<div class="confirm-bg" data-act="confirmCancel">
     <div class="confirm" data-act="noop" role="alertdialog" aria-modal="true" aria-labelledby="cf-t" aria-describedby="cf-d">
-      <div class="cf-ico" aria-hidden="true">${c.icon || '⚠️'}</div>
+      <div class="cf-ico" aria-hidden="true">${ICON[c.icon] || ICON.alert}</div>
       <h3 id="cf-t">${c.title}</h3>
       <p id="cf-d">${c.text}</p>
       <div class="cf-btns">
@@ -606,11 +606,11 @@ function viewMod() {
   const steps = PHASES.map((p, i) => `<span class="${r.phase === p ? 'on' : i < idx || r.phase === 'ended' ? 'done' : ''}">${PHASE_LABEL[p]}</span>`).join('');
   return `
   <div class="topbar">
+    <button class="iconbtn" data-act="leave" aria-label="Admin home" title="Admin home">${ICON.back}</button>
     <span class="chip" style="background:var(--purple);color:#fff">${ICON.crown} Moderator</span>
     <span class="chip">${r.round ? `Round ${r.round}` : 'Setting up'}</span>
     <span class="spacer"></span>
     ${soundBtn()}
-    <button class="btn ghost small" data-act="leave">${ICON.back} Admin home</button>
   </div>
   <div class="modgrid">
     <div class="stack">
@@ -636,8 +636,8 @@ function viewMod() {
       </div>
     </div>
     <div class="stack">
-      <p class="banner">🔒 Only you can see this screen. Keep this tab open: it runs the game. Don't share your screen on Teams!</p>
-      <div class="card stack"><h3>📜 Moderator log</h3>
+      <p class="banner">${ICON.lock} Only you can see this screen. Keep this tab open: it runs the game. Don't share your screen on Teams!</p>
+      <div class="card stack"><h3>Moderator log</h3>
         <div class="log">${(S.mod?.log || []).slice().reverse().map((l) => `<div data-key="log-${l.t}">${l.text}</div>`).join('') || '<p class="muted small">Things that happen will show up here.</p>'}</div>
       </div>
     </div>
@@ -673,13 +673,13 @@ function autoControls() {
   const total = timeFor(r.phase), left = secsLeft();
   const next = NEXT_NAME[r.phase];
   return `<div class="autobar ${paused ? 'paused' : ''}">
-    <div class="ab-time"><small>${paused ? '⏸ Paused' : `🤖 ${next} starts automatically in`}</small>
+    <div class="ab-time"><small>${paused ? 'Paused' : `${next} starts automatically in`}</small>
       <b ${paused ? '' : `data-timer data-end="${r.phaseEndsAt}"`}>${fmt(left)}</b></div>
     <div class="pb"><i ${paused ? '' : `data-tbar data-end="${r.phaseEndsAt}" data-total="${total}"`} style="transform:scaleX(${Math.min(1, left / total)})"></i></div>
     <div class="ab-btns">
-      <button class="btn small ghost" data-act="${paused ? 'resume' : 'pause'}">${paused ? '▶ Resume' : '⏸ Pause'}</button>
+      <button class="btn small ghost" data-act="${paused ? 'resume' : 'pause'}">${paused ? `${ICON.play} Resume` : `${ICON.pause} Pause`}</button>
       <button class="btn small ghost" data-act="extend">+30s</button>
-      <button class="btn small" data-act="skip">⏭ Skip to ${next}</button>
+      <button class="btn small" data-act="skip">${ICON.skip} Skip to ${next}</button>
     </div></div>`;
 }
 const ctl = (manualButtons) => (isAuto() ? autoControls() : manualButtons);
@@ -687,11 +687,11 @@ const ctl = (manualButtons) => (isAuto() ? autoControls() : manualButtons);
 function timersField() {
   const r = room();
   const rows = (isAuto() ? TIMERS : TIMERS.filter((t) => t.k === 'night'));
-  return `<div class="field"><label>⏱ Timers</label>
-    ${toggle('auto', '🤖 Automatic mode', 'The app runs every phase by itself (roles → night → morning → debate → vote → verdict) using these timers, until someone wins. You can still pause, add time or skip.', isAuto())}
-    <div class="timers">${rows.map((t) => `<div class="trow"><span>${t.label}</span>
+  return `<div class="field"><label>Timers</label>
+    ${toggle('auto', 'Automatic mode', 'The app runs every phase by itself (roles → night → morning → debate → vote → verdict) using these timers, until someone wins. You can still pause, add time or skip.', isAuto())}
+    <div class="timers">${rows.map((t) => `<div class="trow"><span>${ICON[t.icon]}${t.label}</span>
       <div class="seg">${t.opts.map((o) => `<button class="${timeFor(t.k) === o ? 'on' : ''}" data-act="timer" data-k="${t.k}" data-s="${o}">${fmt(o)}</button>`).join('')}</div></div>`).join('')}</div>
-    ${isAuto() ? toggle('voteEarly', '⚡ End voting early', 'Close the vote as soon as every living player has used all their votes.', r.settings?.voteEarly !== false) : ''}
+    ${isAuto() ? toggle('voteEarly', 'End voting early', 'Close the vote as soon as every living player has used all their votes.', r.settings?.voteEarly !== false) : ''}
   </div>`;
 }
 
@@ -719,15 +719,15 @@ function modControl() {
       const villagers = Math.max(0, N - c.werewolf - c.doctor - c.seer);
       return `
         <h2>Set up the game</h2>
-        ${toggle('plan', '👥 Plan the player count', 'Set how many players you expect, so you can plan exactly how many villagers, doctors, seers and werewolves before anyone joins. The game waits until everyone is in.', !!plan)}
+        ${toggle('plan', 'Plan the player count', 'Set how many players you expect, so you can plan exactly how many villagers, doctors, seers and werewolves before anyone joins. The game waits until everyone is in.', !!plan)}
         ${plan ? `<div class="planrow">
             <div class="field"><label>Players expected</label>
               <div class="stepper"><button data-act="planned" data-d="-1" aria-label="fewer players">−</button><b>${plan}</b><button data-act="planned" data-d="1" aria-label="more players">+</button></div></div>
             <div class="joinbar" aria-label="${joined} of ${plan} joined"><div style="transform:scaleX(${Math.min(1, joined / plan)})"></div></div>
-            <span class="small"><b>${joined}</b> of ${plan} joined ${joined >= plan ? '✅' : '⏳'}</span>
+            <span class="small"><b>${joined}</b> of ${plan} joined</span>
           </div>` : ''}
         <div class="field"><div class="row"><label>Roles for ${N} player${N === 1 ? '' : 's'}</label><span class="spacer"></span>
-          ${N >= G.MIN_PLAYERS && !isSug ? `<button class="btn small ghost" data-act="suggestRoles">✨ Use suggested for ${N}</button>` : ''}</div>
+          ${N >= G.MIN_PLAYERS && !isSug ? `<button class="btn small ghost" data-act="suggestRoles">Use suggested for ${N}</button>` : ''}</div>
           <div class="rolesteps">
             ${roleStepper('wolves', 'Werewolves', c.werewolf, G.ROLES.werewolf.color, ROLE_SVG.werewolf)}
             ${roleStepper('doctors', 'Doctors', c.doctor, G.ROLES.doctor.color, ROLE_SVG.doctor)}
@@ -739,8 +739,8 @@ function modControl() {
               <div class="rs-auto"><b>${villagers}</b><span>everyone else</span></div>
             </div>`}
           </div>
-          ${note ? `<p class="banner">👥 ${note}</p>` : ''}
-          <p class="muted small">🎲 When you deal, the app shuffles everyone and hands out these roles at random. Nobody (not even you) chooses who gets what.</p>
+          ${note ? `<p class="banner">${note}</p>` : ''}
+          <p class="muted small">When you deal, the app shuffles everyone and hands out these roles at random. Nobody (not even you) chooses who gets what.</p>
         </div>
         <div class="row wrap" style="gap:24px">
           <div class="field"><label>Votes per player</label>
@@ -749,39 +749,39 @@ function modControl() {
         </div>
         ${timersField()}
         <div class="field"><label>Extra clues for the village</label>
-          ${toggle('hunch', '🤔 Village hunch', 'Each morning, everyone sees who got the most “Who do you suspect?” taps last night. The count is anonymous.', r.settings?.hunch)}
-          ${toggle('rumor', '🗝️ Rumors', 'Each morning, one random villager secretly hears a true clue: “One of these 3 people is a werewolf.” Makes the game easier for the village.', r.settings?.rumor)}
+          ${toggle('hunch', 'Village hunch', 'Each morning, everyone sees who got the most “Who do you suspect?” taps last night. The count is anonymous.', r.settings?.hunch)}
+          ${toggle('rumor', 'Rumors', 'Each morning, one random villager secretly hears a true clue: “One of these 3 people is a werewolf.” Makes the game easier for the village.', r.settings?.rumor)}
         </div>
         ${problem ? `<p class="banner">${problem}</p>` : ''}
-        ${!problem && r.autoStartAt ? `<p class="banner go">🚀 Everyone's here! Starting automatically in <b data-timer data-end="${r.autoStartAt}">${fmt(Math.max(0, Math.ceil((r.autoStartAt - Date.now()) / 1000)))}</b></p>` : ''}
-        ${isAuto() && plan && !r.autoStartAt ? `<p class="muted small">🤖 The game will start by itself 10 seconds after all ${plan} players have joined.</p>` : ''}
-        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>🎲 ${isAuto() ? (r.autoStartAt ? 'Start now' : 'Deal roles & start') : 'Deal random roles'}</button>`;
+        ${!problem && r.autoStartAt ? `<p class="banner go">Everyone's here. Starting automatically in <b data-timer data-end="${r.autoStartAt}">${fmt(Math.max(0, Math.ceil((r.autoStartAt - Date.now()) / 1000)))}</b></p>` : ''}
+        ${isAuto() && plan && !r.autoStartAt ? `<p class="muted small">The game will start by itself 10 seconds after all ${plan} players have joined.</p>` : ''}
+        <button class="btn" data-act="deal" ${problem ? 'disabled' : ''}>${ICON.dice} ${isAuto() ? (r.autoStartAt ? 'Start now' : 'Deal roles & start') : 'Deal random roles'}</button>`;
     }
     case 'roles':
-      return `<h2>Roles are dealt! 🃏</h2>
+      return `<h2>Roles are dealt</h2>
         <p class="muted small">${roleSummary(roleCounts(), S.players.length)}</p>
         ${script('“Check your phone and tap the card to see your secret role. Don’t show anyone!”')}
-        <button class="btn ghost small" data-act="reshuffle">🎲 Reshuffle roles</button>
+        <button class="btn ghost small" data-act="reshuffle">${ICON.dice} Reshuffle roles</button>
         ${ctl(`<button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`)}`;
     case 'night': {
       const acted = new Set(nowActions().map((a) => a.uid));
       const al = alive();
       return `<div class="row">${ringHTML('style="margin:0"')}
-          <div><h2>Night ${r.round} 🌙</h2><p class="muted">${al.filter((p) => acted.has(p.id)).length} of ${al.length} players have chosen</p></div></div>
+          <div><h2>Night ${r.round}</h2><p class="muted">${al.filter((p) => acted.has(p.id)).length} of ${al.length} players have chosen</p></div></div>
         ${script('“Night falls on Moonhollow… Everyone mute and turn your camera off. Make your choice on your phone.”')}
         ${ctl(`<button class="btn pink" data-act="endNight">${ICON.skip} End night now</button>`)}`;
     }
     case 'morning': {
       const v = r.morning?.victim;
-      return `<h2>Morning ☀️</h2>
+      return `<h2>Morning</h2>
         ${v ? script(`“As the sun rose… the village found <b>${pname(v)}</b> gobbled up! They were a <b>${G.ROLES[S.mod?.roles?.[v]]?.name}</b>.”`)
             : script('“Good news! Nobody died last night. Someone must have been protected…”')}
         ${r.morning?.hunch ? script(`“The village’s hunch… most of you suspected <b>${r.morning.hunch.ids.map(pname).join(' and ')}</b> last night. Hmm…”`) : ''}
-        ${r.morning?.rumor ? `<p class="banner">🗝️ Rumor sent privately to <b>${pname(r.morning.rumor)}</b>. Don't say who!</p>` : ''}
+        ${r.morning?.rumor ? `<p class="banner">Rumor sent privately to <b>${pname(r.morning.rumor)}</b>. Don't say who!</p>` : ''}
         ${ctl(`<button class="btn sun" data-act="day">${ICON.sun} Start the debate</button>`)}`;
     }
     case 'day':
-      return `<h2>Debate time 🗣️</h2>
+      return `<h2>Debate</h2>
         ${script('“Unmute and talk! Who’s acting suspicious? When you’re ready, we vote.”')}
         <div class="row wrap"><div class="field"><label>Votes per player this round</label>
           <div class="stepper"><button data-act="vpp" data-d="-1" aria-label="fewer votes">−</button><b>${r.settings?.votesPerPlayer ?? 1}</b><button data-act="vpp" data-d="1" aria-label="more votes">+</button></div></div>
@@ -789,14 +789,14 @@ function modControl() {
         ${ctl(`<button class="btn" data-act="openVote">${ICON.vote} Open voting</button>`)}`;
     case 'vote': {
       const votes = nowVotes().filter((v) => pl(v.uid)?.alive && (v.targets || []).length);
-      return `<h2>Voting 🗳️</h2>
+      return `<h2>Voting</h2>
         <p class="muted">${votes.length} of ${alive().length} have voted · ${votesEach()} vote${votesEach() > 1 ? 's' : ''} each</p>
         ${script(votesEach() > 1 ? `“Voting is open on your phones! Everyone gets ${votesEach()} votes. Choose wisely!”` : '“Voting is open on your phones. Choose wisely!”')}
         ${ctl(`<button class="btn pink" data-act="closeVote">${ICON.check} Close voting</button>`)}`;
     }
     case 'verdict': {
       const vd = r.verdict || {};
-      return `<h2>Verdict ⚖️</h2>
+      return `<h2>Verdict</h2>
         ${vd.out ? script(`“The village has spoken… <b>${pname(vd.out)}</b> is out! They were a <b>${G.ROLES[S.mod?.roles?.[vd.out]]?.name}</b>.”`)
                  : script(vd.noVotes ? '“Nobody voted, so nobody leaves today.”' : '“It’s a tie! Nobody leaves the village today.”')}
         ${ctl(`<button class="btn" data-act="night">${ICON.moon} Start Night ${r.round + 1}</button>`)}`;
@@ -811,14 +811,14 @@ function modPlayers() {
   const r = room();
   const acts = Object.fromEntries(nowActions().map((a) => [a.uid, a]));
   const votes = Object.fromEntries(nowVotes().map((v) => [v.uid, v.targets || []]));
-  const verb = { kill: '🐺 attacks', protect: '🛡️ protects', inspect: '🔮 checks', suspect: '🤔 suspects' };
-  if (!S.players.length) return `<p class="muted">Nobody yet. Share the invite in the Teams chat! 💌</p>`;
+  const verb = { kill: 'attacks', protect: 'protects', inspect: 'checks', suspect: 'suspects' };
+  if (!S.players.length) return `<p class="muted">Nobody yet. Share the invite in the Teams chat.</p>`;
   return `<div class="plist">${S.players.map((p) => {
     const role = S.mod?.roles?.[p.id];
-    let activity = p.alive ? 'Alive' : 'Ghost 👻';
-    if (p.bot) activity += ' · 🤖 bot';
-    if (r.phase === 'night' && p.alive) activity = acts[p.id] ? `${verb[acts[p.id].type]} ${pname(acts[p.id].target)}` : '⏳ choosing…';
-    if (r.phase === 'vote' && p.alive) activity = votes[p.id]?.length ? `🗳️ votes ${votes[p.id].map(pname).join(', ')}` : '⏳ thinking…';
+    let activity = p.alive ? 'Alive' : 'Ghost';
+    if (p.bot) activity += ' · bot';
+    if (r.phase === 'night' && p.alive) activity = acts[p.id] ? `${verb[acts[p.id].type]} ${pname(acts[p.id].target)}` : 'choosing…';
+    if (r.phase === 'vote' && p.alive) activity = votes[p.id]?.length ? `votes ${votes[p.id].map(pname).join(', ')}` : 'thinking…';
     return `<div class="prow ${p.alive ? '' : 'dead'}">${av(p.avatar, 42, { dead: !p.alive })}
       <div class="who"><b>${esc(p.name)}</b><span>${activity}</span></div>
       ${role && r.phase !== 'lobby' ? `<span class="rtag" style="--rc:${RC(role)}">${G.ROLES[role].name}</span>` : ''}
@@ -883,7 +883,7 @@ function viewAdminGate() {
     <div class="title"><small>${esc(S.brand.village)} · Admin</small><h1>${esc(S.brand.name)}</h1></div>
   </section>
   <div class="card stack" style="margin-top:18px">
-    <h3>${setup ? '👋 First-time setup' : '🔒 Moderator sign-in'}</h3>
+    <h3>${setup ? 'First-time setup' : 'Moderator sign-in'}</h3>
     <p class="muted small">${setup
       ? 'Create an admin PIN. Anyone who wants to moderate a game will need it, so keep it secret!'
       : 'Enter the admin PIN to run games and change the app’s look. You only need to do this once per device.'}</p>
@@ -911,7 +911,7 @@ function viewAdminHome() {
   <div class="modgrid">
     <div class="stack">
       <div class="card stack">
-        <h2>Start a game 🎲</h2>
+        <h2>Start a game</h2>
         <p class="muted">You'll be the moderator. You run the game but don't play.</p>
         <button class="btn" data-act="create">${ICON.sparkle} Create a new game</button>
         ${last ? `<button class="btn sun" data-act="resumeGame">${ICON.play} Resume game ${esc(last.code)} <span class="small" style="opacity:.75">(${PHASE_LABEL[last.phase] || last.phase})</span></button>` : ''}
@@ -970,8 +970,8 @@ async function loadLastRoom() {
 
 async function adminSetup() {
   const pin = S.ui.pin.trim();
-  if (pin.length < 4) return toast('Use at least 4 characters 🔢');
-  if (pin !== S.ui.pin2.trim()) return toast("The two PINs don't match 🙈");
+  if (pin.length < 4) return toast('Use at least 4 characters');
+  if (pin !== S.ui.pin2.trim()) return toast("The two PINs don't match");
   let existing = null;
   try { existing = await S.be.get('app/secret'); } catch {}
   if (existing) { S.view = 'adminLogin'; return toast('A PIN already exists. Please sign in with it.'); }
@@ -985,13 +985,13 @@ async function adminSetup() {
 
 async function adminLogin() {
   const pin = S.ui.pin.trim();
-  if (!pin) return toast('Type the admin PIN 🔢');
+  if (!pin) return toast('Type the admin PIN');
   let secret = null;
   try { secret = await S.be.get('app/secret'); } catch {}           // Firebase never lets anyone read it
-  if (secret && secret.pin !== pin) return toast('Wrong PIN 🙅');      // (demo mode checks here instead)
+  if (secret && secret.pin !== pin) return toast('Wrong PIN');      // (demo mode checks here instead)
   if (S.be.mode === 'demo' && !secret) return toast('No PIN set up yet. Tap "First time?" below.');
   try { await S.be.set(`admins/${S.uid}`, { pin, at: Date.now() }); }
-  catch { return toast('Wrong PIN 🙅'); }
+  catch { return toast('Wrong PIN'); }
   S.ui.pin = '';
   S.view = 'adminHome'; SND.play('join');
   loadLastRoom();
@@ -1007,7 +1007,7 @@ async function saveBrand() {
   };
   await S.be.set('app/branding', clean);
   S.ui.draft = null;
-  toast('Saved! Everyone will see the new look ✨');
+  toast('Saved. Everyone will see the new look.');
 }
 
 // ═════════════════════════ automatic game master ═════════════════════════
@@ -1138,7 +1138,7 @@ function enterRoom(code, isMod) {
     if (prev && prev.phase === 'roles' && d.phase === 'roles' && prev.dealtAt !== d.dealtAt) {
       S.ui.flipped = false;                       // the moderator reshuffled: show the new card face-down
       SND.play('flip');
-      if (!isMod) toast('🎲 Roles were reshuffled! Tap your card to see your NEW role.');
+      if (!isMod) toast('Roles were reshuffled. Tap your card to see your new role.');
     }
     if (prev && prev.phase !== d.phase) {
       phaseSound(d);
@@ -1223,7 +1223,7 @@ async function createRoom() {
     settings: { wolves: 2, doctors: 1, seers: 1, votesPerPlayer: 1, hunch: false, rumor: false, auto: true, voteEarly: true,
       times: { roles: 20, night: 45, morning: 10, day: 120, vote: 45, verdict: 10 } },
   });
-  await S.be.set(`rooms/${code}/secrets/_mod`, { roles: {}, log: [{ t: Date.now(), text: '🏡 Room created. Waiting for villagers…' }] });
+  await S.be.set(`rooms/${code}/secrets/_mod`, { roles: {}, log: [{ t: Date.now(), text: 'Room created. Waiting for villagers…' }] });
   enterRoom(code, true);
 }
 
@@ -1243,7 +1243,7 @@ async function dealRoles() {
   }
   const names = (role) => ps.filter((p) => roles[p.id] === role).map((p) => esc(p.name)).join(', ');
   ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles, lastProtected: {}, seer: {}, log: [
-    { t: Date.now(), text: `🎲 Roles dealt at random. 🐺 Wolves: <b>${names('werewolf')}</b> · 🛡️ Doctor: <b>${names('doctor') || 'none'}</b> · 🔮 Seer: <b>${names('seer') || 'none'}</b>` }] } });
+    { t: Date.now(), text: `Roles dealt at random. Wolves: <b>${names('werewolf')}</b> · Doctor: <b>${names('doctor') || 'none'}</b> · Seer: <b>${names('seer') || 'none'}</b>` }] } });
   ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null, dealtAt: Date.now(), phaseEndsAt: endsFor('roles'), pausedLeft: null, autoStartAt: null } });
   await S.be.batch(ops);
 }
@@ -1257,7 +1257,7 @@ async function startNight() {
     const a = G.botNightAction(b, roles[b.id], S.players, roles, lastFor(b.id));
     if (a.target) ops.push({ type: 'set', path: P(`/actions/${r.game}_${round}_${b.id}`), data: { game: r.game, round, uid: b.id, ...a, at: Date.now() } });
   }
-  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(`🌙 Night ${round} begins.`) } });
+  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(`Night ${round} begins.`) } });
   S.resolving = null;
   await S.be.batch(ops);
 }
@@ -1285,7 +1285,7 @@ async function processSeer() {
     const who = seers.length > 1 ? ` (${pname(seerId)})` : '';
     await S.be.batch([
       { type: 'update', path: P(`/secrets/${seerId}`), data: { [`seer.${r.round}`]: { target: a.target, isWolf } } },
-      { type: 'update', path: P('/secrets/_mod'), data: { [`seer.${key}`]: a.target, log: logAdd(`🔮 Seer${who} checked <b>${pname(a.target)}</b>: ${isWolf ? 'WEREWOLF' : 'not a werewolf'}.`) } },
+      { type: 'update', path: P('/secrets/_mod'), data: { [`seer.${key}`]: a.target, log: logAdd(`Seer${who} checked <b>${pname(a.target)}</b>: ${isWolf ? 'WEREWOLF' : 'not a werewolf'}.`) } },
     ]).catch((e) => { S.seerPending.delete(key); console.error(e); });
   }
 }
@@ -1307,23 +1307,23 @@ async function resolveNightNow() {
     const winner = G.checkWinner(after, roles);
     const doctorIds = Object.keys(roles).filter((id) => roles[id] === 'doctor');
     const picks = [...new Set(res.wolfPicks)];
-    let text = `☀️ Night ${r.round}: wolves picked ${picks.length ? picks.map(pname).map((n) => `<b>${n}</b>`).join(' & ') : 'nobody'}`;
+    let text = `Night ${r.round}: wolves picked ${picks.length ? picks.map(pname).map((n) => `<b>${n}</b>`).join(' & ') : 'nobody'}`;
     if (picks.length > 1) text += ` (the moon chose <b>${pname(res.attacked)}</b>)`;
     if (doctorIds.length) {
       const prot = res.protectedIds.map((id) => `<b>${pname(id)}</b>`).join(' & ');
       text += prot ? `. Doctor${doctorIds.length > 1 ? 's' : ''} protected ${prot}.` : `. Doctor${doctorIds.length > 1 ? 's' : ''} protected nobody.`;
     } else text += '.';
-    text += res.saved ? ' 🛡️ SAVED!' : res.victim ? ` 💀 <b>${pname(res.victim)}</b> died.` : '';
+    text += res.saved ? ' Saved by the doctor.' : res.victim ? ` <b>${pname(res.victim)}</b> died.` : '';
 
     const ops = [];
     // optional clues for the village
     const st = r.settings || {};
     const hunch = st.hunch && !winner ? G.villageHunch(nowActions(), after) : null;
     const rumor = st.rumor && !winner ? G.makeRumor(after, roles) : null;
-    if (hunch) text += ` 🤔 Hunch: ${hunch.ids.map(pname).join(' & ')} (${hunch.count}/${hunch.total}).`;
+    if (hunch) text += ` Hunch: ${hunch.ids.map(pname).join(' & ')} (${hunch.count}/${hunch.total}).`;
     if (rumor) {
       ops.push({ type: 'update', path: P(`/secrets/${rumor.to}`), data: { [`rumor.${r.round}`]: rumor.ids } });
-      text += ` 🗝️ Rumor to <b>${pname(rumor.to)}</b>: one of ${rumor.ids.map(pname).join(', ')}.`;
+      text += ` Rumor to <b>${pname(rumor.to)}</b>: one of ${rumor.ids.map(pname).join(', ')}.`;
     }
     if (res.victim) ops.push({ type: 'update', path: P(`/players/${res.victim}`), data: { alive: false, role: roles[res.victim] } });
     const newLast = {};
@@ -1333,7 +1333,7 @@ async function resolveNightNow() {
     }
     if (winner) ops.push(...revealAllOps(roles, res.victim ? { [res.victim]: { alive: false } } : {}));
     S.mod.lastProtected = newLast;
-    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
+    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` ${winner === 'wolves' ? 'Werewolves' : 'Village'} win.` : '')) } });
     ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null, phaseEndsAt: winner ? null : endsFor('morning'), pausedLeft: null } });
     await S.be.batch(ops);
   } catch (e) {
@@ -1362,11 +1362,11 @@ async function closeVote() {
   const after = S.players.map((p) => (p.id === t.out ? { ...p, alive: false } : p));
   const winner = G.checkWinner(after, roles);
   const tally = Object.entries(t.counts).map(([id, c]) => `${pname(id)} ${c}`).join(', ') || 'no votes';
-  const text = `🗳️ Day ${r.round} vote (${tally}): ${t.out ? `<b>${pname(t.out)}</b> voted out. They were a ${G.ROLES[roles[t.out]].name}.` : t.tie ? 'tie, nobody out.' : 'nobody voted.'}`;
+  const text = `Day ${r.round} vote (${tally}): ${t.out ? `<b>${pname(t.out)}</b> voted out. They were a ${G.ROLES[roles[t.out]].name}.` : t.tie ? 'tie, nobody out.' : 'nobody voted.'}`;
   const ops = [];
   if (t.out) ops.push({ type: 'update', path: P(`/players/${t.out}`), data: { alive: false, role: roles[t.out] } });
   if (winner) ops.push(...revealAllOps(roles, t.out ? { [t.out]: { alive: false } } : {}));
-  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(text + (winner ? ` 🏆 ${winner === 'wolves' ? 'Werewolves' : 'Village'} win!` : '')) } });
+  ops.push({ type: 'update', path: P('/secrets/_mod'), data: { log: logAdd(text + (winner ? ` ${winner === 'wolves' ? 'Werewolves' : 'Village'} win.` : '')) } });
   ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'verdict', verdict: { out: t.out, tie: t.tie, noVotes: !!t.noVotes, round: r.round }, winner: winner || null, phaseEndsAt: winner ? null : endsFor('verdict'), pausedLeft: null } });
   await S.be.batch(ops);
 }
@@ -1374,7 +1374,7 @@ async function closeVote() {
 async function playAgain() {
   const r = room();
   const ops = S.players.map((p) => ({ type: 'update', path: P(`/players/${p.id}`), data: { alive: true, role: null } }));
-  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles: {}, seer: {}, lastProtected: {}, log: [{ t: Date.now(), text: `🔁 New game #${r.game + 1}. Same villagers, new secrets!` }] } });
+  ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles: {}, seer: {}, lastProtected: {}, log: [{ t: Date.now(), text: `New game #${r.game + 1}. Same villagers, new secrets.` }] } });
   ops.push({ type: 'update', path: P(), data: { phase: 'lobby', game: r.game + 1, round: 0, morning: null, verdict: null, winner: null, phaseEndsAt: null, pausedLeft: null, autoStartAt: null } });
   await S.be.batch(ops);
 }
@@ -1394,14 +1394,14 @@ async function addBot() {
 async function joinGame() {
   const code = S.ui.code.trim().toUpperCase();
   const name = S.ui.name.trim();
-  if (code.length !== 5) return toast('Room codes have 5 letters 🔤');
-  if (!name) return toast('Tell the village your name! ✏️');
+  if (code.length !== 5) return toast('Room codes have 5 letters');
+  if (!name) return toast('Tell the village your name');
   const r = await S.be.get(`rooms/${code}`);
-  if (!r) return toast("Can't find that room. Check the code 🔍");
-  if (r.moderatorUid === S.uid) return toast('This device is the moderator of that game. Use another phone to play! 📱');
+  if (!r) return toast("Can't find that room. Check the code.");
+  if (r.moderatorUid === S.uid) return toast('This device is the moderator of that game. Use another phone to play.');
   const existing = await S.be.get(`rooms/${code}/players/${S.uid}`);
   if (existing) return enterRoom(code, false);
-  if (r.phase !== 'lobby') return toast('That game already started. Wait for the next one! ⏳');
+  if (r.phase !== 'lobby') return toast('That game already started. Wait for the next one.');
   await S.be.set(`rooms/${code}/players/${S.uid}`, { name, avatar: S.ui.avatar ?? 0, alive: true, joinedAt: Date.now() });
   SND.play('join');
   enterRoom(code, false);
@@ -1446,10 +1446,10 @@ const ACT = {
         // the admin page runs the game: leaving it would freeze everyone's screens
         const timed = !!r.phaseEndsAt && r.pausedLeft == null;
         const yes = await askConfirm({
-          icon: '🛑',
+          icon: 'alert',
           title: 'Leave the running game?',
           text: `Your admin page runs this game, so nothing moves on while you're on Admin home.${timed ? ' The game will be <b>paused</b> for everyone.' : ''} Press <b>Resume game</b> on Admin home to come back.`,
-          ok: timed ? '⏸ Pause & leave' : 'Leave game',
+          ok: timed ? 'Pause & leave' : 'Leave game',
           cancel: 'Stay in the game',
           danger: true,
         });
@@ -1464,27 +1464,27 @@ const ACT = {
   flip: () => { S.ui.flipped = !S.ui.flipped; SND.play('flip'); render(); },
   sound: () => {
     const m = SND.cycleMode();
-    toast({ all: '🎵 Music & sounds on', sfx: '🔔 Sound effects only', off: '🔇 Muted' }[m]);
+    toast({ all: 'Music & sounds on', sfx: 'Sound effects only', off: 'Muted' }[m]);
     render();
   },
   showSetup: () => { S.view = 'adminSetup'; render(); },
   adminSetup: () => guarded(adminSetup),
   adminLogin: () => guarded(adminLogin),
   resumeGame: () => S.lastRoom && enterRoom(S.lastRoom.code, true),
-  copyLink: async () => { await copy(playerLink()); toast('Player link copied! 🔗'); },
+  copyLink: async () => { await copy(playerLink()); toast('Player link copied'); },
   pickIcon: (d) => { S.ui.draft.icon = ICON_CHOICES[+d.i]; render(); },
   resetBrand: () => { S.ui.draft = JSON.parse(JSON.stringify(DEFAULT_BRAND)); render(); },
   saveBrand: () => guarded(saveBrand),
   changePin: () => guarded(async () => {
     const pin = S.ui.newPin.trim();
-    if (pin.length < 4) return toast('Use at least 4 characters 🔢');
+    if (pin.length < 4) return toast('Use at least 4 characters');
     await S.be.update('app/secret', { pin });
-    S.ui.newPin = ''; toast('PIN changed 🔐');
+    S.ui.newPin = ''; toast('PIN changed');
   }),
   lockDevice: async () => {
     const live = S.lastRoom && !['lobby', 'ended'].includes(S.lastRoom.phase);
     const yes = await askConfirm({
-      icon: '🔒',
+      icon: 'lock',
       title: 'Sign out of admin on this device?',
       text: `You'll need the <b>admin PIN</b> to sign back in.${live ? ` Your game <b>${esc(S.lastRoom.code)}</b> is still in progress and stays frozen until you sign back in and press <b>Resume game</b>.` : ''}`,
       ok: 'Sign out',
@@ -1511,8 +1511,8 @@ const ACT = {
   },
   pick: (d) => pickTarget(d.id).catch((e) => toast(e.message)),
   copyInvite: async () => {
-    await copy(`🐺 Join our Werewolf game in Moonhollow!\n1) Open ${inviteLink()} on your phone\n2) Room code: ${S.code}`);
-    toast('Invite copied! Paste it in the Teams chat 💌');
+    await copy(`Join our Werewolf game in Moonhollow!\n1) Open ${inviteLink()} on your phone\n2) Room code: ${S.code}`);
+    toast('Invite copied. Paste it in the Teams chat.');
   },
   openTab: () => window.open(inviteLink(), '_blank'),
   addBot: () => guarded(addBot),
@@ -1538,7 +1538,7 @@ const ACT = {
     const min = key === 'wolves' ? 1 : 0;
     const max = key === 'wolves' ? 6 : 3;
     const next = Math.min(max, Math.max(min, now + +d.d));
-    if (next === now) return toast(next === min ? (key === 'wolves' ? 'You need at least 1 werewolf 🐺' : 'Already at 0') : `Max ${max} here`);
+    if (next === now) return toast(next === min ? (key === 'wolves' ? 'You need at least 1 werewolf' : 'Already at 0') : `Max ${max} here`);
     guarded(() => S.be.update(P(), { [`settings.${key}`]: next }));
   },
   suggestRoles: () => {
@@ -1547,7 +1547,7 @@ const ACT = {
   },
   reshuffle: () => guarded(async () => {
     await dealRoles();
-    toast('🎲 Roles reshuffled. Players will see a new card.');
+    toast('Roles reshuffled. Players will see a new card.');
   }),
   wolves: (d) => {
     const n = S.players.length;
@@ -1617,7 +1617,7 @@ document.addEventListener('change', async (e) => {
   try {
     S.ui.draft.icon = { type: 'image', data: await fileToIcon(e.target.files[0]) };
     render();
-  } catch { toast("Couldn't read that picture 🖼️"); }
+  } catch { toast("Couldn't read that picture"); }
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.ui.confirm) { closeConfirm(false); return; }

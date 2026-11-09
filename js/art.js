@@ -374,6 +374,15 @@ export function moonSceneSVG() {
 // ── Small UI icons (24×24, stroke) ────────────────────────────
 const I = (p, extra = '') => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${p}</svg>`;
 export const ICON = {
+  pause: I('<path d="M8.5 5.5v13M15.5 5.5v13"/>'),
+  chat: I('<path d="M4.5 6.5h15v9.5h-8l-4.5 3.5V16h-2.5Z"/>'),
+  scale: I('<path d="M12 4v16M8 20h8M5 7.5h14"/><path d="M5 7.5 2.5 13a2.6 2.6 0 0 0 5 0Z M19 7.5 16.5 13a2.6 2.6 0 0 0 5 0Z"/>'),
+  cards: I('<rect x="7.5" y="4.5" width="11" height="15" rx="2.2" transform="rotate(8 13 12)"/><path d="M5.6 6.4 4.1 17.2a2 2 0 0 0 1.7 2.3l4.4.6"/>'),
+  mic: I('<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>'),
+  alert: I('<path d="M12 4 21 19.5H3Z"/><path d="M12 10v4.2"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>'),
+  dice: I('<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
+  key: I('<circle cx="8" cy="12" r="3.8"/><path d="M11.8 12H20.5M17.5 12v3M20.5 12v2.2"/>'),
+  hunch: I('<path d="M9.2 9.2a2.9 2.9 0 1 1 4.2 2.6c-.9.5-1.4 1.2-1.4 2.2v.5"/><circle cx="12" cy="18" r=".7" fill="currentColor"/><circle cx="12" cy="12" r="9"/>'),
   moon: I('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>'),
   sun: I('<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>'),
   shield: I('<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6Z"/>'),
