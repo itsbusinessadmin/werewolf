@@ -61,6 +61,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 | Rule | Setting |
 |---|---|
 | Roles | Moderator sets how many **werewolves (1–6)**, **doctors (0–3)** and **seers (0–3)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
+| Planned player count (optional) | Switch on **👥 Plan the player count** to set how many players you expect. You can then set the exact number of villagers too, and the game waits until that many have joined. Anyone extra becomes a villager |
 | Dealing | 🎲 **Random**: the app shuffles all players and hands out the roles; nobody (not even the moderator) chooses. **Reshuffle roles** re-deals before night 1 |
 | Several doctors | Each protects one person; anyone protected by any doctor survives. Each doctor can't protect the same person two nights in a row |
 | Several seers | Each gets their own private peek every night |
