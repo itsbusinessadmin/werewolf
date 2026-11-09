@@ -543,3 +543,18 @@ body.theme-day { background: #FDE6EE; }
 }
 /* the portrait on the back of a face-down card is invisible: don't run it */
 .flip:not(.open) .anim, .flip:not(.open) .anim * { animation-play-state: paused; }
+
+/* ───────── "are you sure?" dialog ───────── */
+.confirm-bg { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px;
+  background: rgba(20, 12, 50, .55); animation: fade .2s ease both; }
+.confirm { width: min(400px, 100%); background: #fff; color: var(--ink); border-radius: 24px; padding: 22px 22px 18px; text-align: center; cursor: default;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35); animation: cfIn .22s var(--ease-out) both; }
+@keyframes cfIn { from { opacity: 0; transform: scale(.96); } }
+.confirm .cf-ico { font-size: 36px; line-height: 1; }
+.confirm h3 { margin: 10px 0 6px; font-size: 20px; }
+.confirm p { margin: 0; color: var(--ink-soft); font-size: 14.5px; line-height: 1.5; }
+.confirm p b { color: var(--ink); }
+.cf-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+.confirm-bg.closing { animation: fade .15s ease reverse both; }
+.confirm-bg.closing .confirm { animation: none; transform: scale(.97); transition: transform .15s var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .confirm { animation: fade .2s ease both; } }
