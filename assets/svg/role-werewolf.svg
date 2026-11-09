@@ -9,15 +9,13 @@
     <g clip-path="url(#cp-werewolf)"><circle cx="30" cy="150" r="1.6" fill="#fff" opacity=".8"/><circle cx="170" cy="160" r="1.6" fill="#fff" opacity=".8"/><circle cx="24" cy="70" r="1.6" fill="#fff" opacity=".8"/><circle cx="100" cy="18" r="1.6" fill="#fff" opacity=".8"/>
     <circle cx="150" cy="52" r="24" fill="#FFF3B8"/>
     <circle cx="142" cy="46" r="5" fill="#F2E39A"/><circle cx="156" cy="60" r="3.5" fill="#F2E39A"/>
-    <path transform="translate(40 42) scale(0.9)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#FFF6C9"/><path transform="translate(58 24) scale(0.55)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#FFF6C9"/><path transform="translate(172 104) scale(0.6)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#FFF6C9"/>
+    <path class="ch-spark" transform="translate(40 42) scale(0.9)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#FFF6C9"/><path class="ch-spark" transform="translate(58 24) scale(0.55)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#FFF6C9"/><path class="ch-spark" transform="translate(172 104) scale(0.6)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#FFF6C9"/>
     <!-- body -->
     <path d="M44 204 C44 160 70 146 100 146 C130 146 156 160 156 204Z" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
     <path d="M76 204 C76 172 88 162 100 162 C112 162 124 172 124 204Z" fill="#E9E3FF"/>
-    <!-- ears -->
-    <path d="M50 84 L58 26 L96 62 Z" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M150 84 L142 26 L104 62 Z" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M60 72 L63 42 L84 62 Z" fill="#FFAFC5"/>
-    <path d="M140 72 L137 42 L116 62 Z" fill="#FFAFC5"/>
+    <!-- ears (twitch from their base) -->
+    <g class="ch-ear-l"><path d="M50 84 L58 26 L96 62 Z" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><path d="M60 72 L63 42 L84 62 Z" fill="#FFAFC5"/></g>
+    <g class="ch-ear-r"><path d="M150 84 L142 26 L104 62 Z" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><path d="M140 72 L137 42 L116 62 Z" fill="#FFAFC5"/></g>
     <!-- fluffy head -->
     <path d="M40 108 L28 98 L40 92 C38 70 62 52 100 52 C138 52 162 70 160 92 L172 98 L160 108 L170 118 L156 122 C148 148 126 158 100 158 C74 158 52 148 44 122 L30 118 Z" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
     <path d="M86 54 L92 66 L100 54 L108 66 L114 54" fill="#6C6496" stroke="#3A2E4D" stroke-width="2" stroke-linejoin="round"/>
@@ -29,6 +27,9 @@
     <ellipse cx="124" cy="100" rx="11" ry="12.5" fill="#FFD84D" stroke="#3A2E4D" stroke-width="2.6"/>
     <ellipse cx="77" cy="102" rx="5.5" ry="7.5" fill="#3A2E4D"/><ellipse cx="123" cy="102" rx="5.5" ry="7.5" fill="#3A2E4D"/>
     <circle cx="74" cy="97" r="2.6" fill="#fff"/><circle cx="120" cy="97" r="2.6" fill="#fff"/>
+    <!-- furry eyelids: hidden until a blink -->
+    <g class="ch-lid" opacity="0"><ellipse cx="76" cy="100" rx="12.4" ry="14" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6"/></g>
+    <g class="ch-lid" opacity="0"><ellipse cx="124" cy="100" rx="12.4" ry="14" fill="#8E86B8" stroke="#3A2E4D" stroke-width="2.6"/></g>
     <!-- nose & mouth -->
     <path d="M90 113 Q100 108 110 113 Q106 122 100 122 Q94 122 90 113Z" fill="#3A2E4D"/>
     <ellipse cx="96" cy="113" rx="2.6" ry="1.4" fill="#fff" opacity=".6"/>

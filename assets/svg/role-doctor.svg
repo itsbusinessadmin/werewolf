@@ -6,7 +6,7 @@
       <clipPath id="cp-doctor"><circle cx="100" cy="100" r="96"/></clipPath>
     </defs>
     <circle cx="100" cy="100" r="96" fill="url(#g-doctor)"/>
-    <g clip-path="url(#cp-doctor)"><path transform="translate(36 44) scale(0.8)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/><path transform="translate(168 60) scale(0.6)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/><g transform="translate(22 30) scale(1.3)">
+    <g clip-path="url(#cp-doctor)"><path class="ch-spark" transform="translate(36 44) scale(0.8)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/><path class="ch-spark" transform="translate(168 60) scale(0.6)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/><g transform="translate(22 30) scale(1.3)">
     
     <path d="M25 60 C22 30 40 19 60 19 C80 19 98 30 95 60 L96 84 C90 90 30 90 24 84 Z" fill="#5A3A2E" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
     <path d="M17 124 C17 99 36 90 60 90 C84 90 103 99 103 124Z" fill="#FFFFFF" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
@@ -16,9 +16,9 @@
     <ellipse cx="60" cy="60" rx="29" ry="29.5" fill="#E9B087" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
     <ellipse cx="41" cy="71" rx="5.5" ry="3.3" fill="#FF8FA3" opacity=".55"/><ellipse cx="79" cy="71" rx="5.5" ry="3.3" fill="#FF8FA3" opacity=".55"/>
     
-    <ellipse cx="48" cy="60.5" rx="6" ry="7" fill="#fff" stroke="#3A2E4D" stroke-width="2.2"/>
+    <g class="ch-blink"><ellipse cx="48" cy="60.5" rx="6" ry="7" fill="#fff" stroke="#3A2E4D" stroke-width="2.2"/>
         <circle cx="48.6" cy="61.5" r="4" fill="#3A2E4D"/><circle cx="47" cy="59.4" r="1.6" fill="#fff"/><ellipse cx="72" cy="60.5" rx="6" ry="7" fill="#fff" stroke="#3A2E4D" stroke-width="2.2"/>
-        <circle cx="72.6" cy="61.5" r="4" fill="#3A2E4D"/><circle cx="71" cy="59.4" r="1.6" fill="#fff"/>
+        <circle cx="72.6" cy="61.5" r="4" fill="#3A2E4D"/><circle cx="71" cy="59.4" r="1.6" fill="#fff"/></g>
     
     <path d="M53 72 q7 7.5 14 0" fill="none" stroke="#3A2E4D" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M30 57 C28 31 44 22 60 22 C76 22 92 31 90 57 C84 50 78 47 72 47 C70 43 68 41 66 40 C64 45 56 47 48 47 C40 47 34 51 30 57Z" fill="#5A3A2E" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
@@ -29,6 +29,6 @@
         <circle cx="60" cy="113" r="5" fill="#C7D3E3" stroke="#3A2E4D" stroke-width="2.4"/>
     </g><g transform="translate(150 150)">
        <path d="M0 -24 L22 -16 V2 C22 16 10 24 0 28 C-10 24 -22 16 -22 2 V-16Z" fill="#5BD1A8" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-       <path d="M0 -10 C-4 -18 -16 -14 -12 -4 C-9 3 0 9 0 9 C0 9 9 3 12 -4 C16 -14 4 -18 0 -10Z" fill="#FF6F91" stroke="#3A2E4D" stroke-width="2"/>
+       <g class="ch-beat"><path d="M0 -10 C-4 -18 -16 -14 -12 -4 C-9 3 0 9 0 9 C0 9 9 3 12 -4 C16 -14 4 -18 0 -10Z" fill="#FF6F91" stroke="#3A2E4D" stroke-width="2"/></g>
      </g></g>
   </svg>

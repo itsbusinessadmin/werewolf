@@ -194,7 +194,7 @@ export function faceInner(o) {
     <ellipse cx="60" cy="60" rx="29" ry="29.5" ${st(skin)}/>
     ${o.blush === false ? '' : `<ellipse cx="41" cy="71" rx="5.5" ry="3.3" fill="#FF8FA3" opacity=".55"/><ellipse cx="79" cy="71" rx="5.5" ry="3.3" fill="#FF8FA3" opacity=".55"/>`}
     ${extras((o.extras || []).filter(e => e === 'freckles'), skin)}
-    ${eyes(o.eyes)}
+    <g class="ch-blink">${eyes(o.eyes)}</g>
     ${beard(o.beard, o.beardColor || hc)}
     ${mouth(o.mouth)}
     ${hairFront(o.hair, hc)}
@@ -240,7 +240,7 @@ export const avatarSVG = (i, opts) => faceSVG(AVATARS[((i % AVATARS.length) + AV
 
 // ── Role portraits (viewBox 0 0 200 200) ──────────────────────
 function sparkle(x, y, s = 1, c = '#FFF6C9') {
-  return `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="${c}"/>`;
+  return `<path class="ch-spark" transform="translate(${x} ${y}) scale(${s})" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="${c}"/>`;
 }
 
 function roleFrame(id, c1, c2, inner, deco = '') {
@@ -265,11 +265,9 @@ export function werewolfSVG() {
     <!-- body -->
     <path d="M44 204 C44 160 70 146 100 146 C130 146 156 160 156 204Z" ${st(fur)}/>
     <path d="M76 204 C76 172 88 162 100 162 C112 162 124 172 124 204Z" fill="${belly}"/>
-    <!-- ears -->
-    <path d="M50 84 L58 26 L96 62 Z" ${st(fur)}/>
-    <path d="M150 84 L142 26 L104 62 Z" ${st(fur)}/>
-    <path d="M60 72 L63 42 L84 62 Z" fill="#FFAFC5"/>
-    <path d="M140 72 L137 42 L116 62 Z" fill="#FFAFC5"/>
+    <!-- ears (twitch from their base) -->
+    <g class="ch-ear-l"><path d="M50 84 L58 26 L96 62 Z" ${st(fur)}/><path d="M60 72 L63 42 L84 62 Z" fill="#FFAFC5"/></g>
+    <g class="ch-ear-r"><path d="M150 84 L142 26 L104 62 Z" ${st(fur)}/><path d="M140 72 L137 42 L116 62 Z" fill="#FFAFC5"/></g>
     <!-- fluffy head -->
     <path d="M40 108 L28 98 L40 92 C38 70 62 52 100 52 C138 52 162 70 160 92 L172 98 L160 108 L170 118 L156 122 C148 148 126 158 100 158 C74 158 52 148 44 122 L30 118 Z" ${st(fur)}/>
     <path d="M86 54 L92 66 L100 54 L108 66 L114 54" fill="${furDark}" stroke="${OUT}" stroke-width="2" stroke-linejoin="round"/>
@@ -281,6 +279,9 @@ export function werewolfSVG() {
     <ellipse cx="124" cy="100" rx="11" ry="12.5" fill="#FFD84D" stroke="${OUT}" stroke-width="2.6"/>
     <ellipse cx="77" cy="102" rx="5.5" ry="7.5" fill="${OUT}"/><ellipse cx="123" cy="102" rx="5.5" ry="7.5" fill="${OUT}"/>
     <circle cx="74" cy="97" r="2.6" fill="#fff"/><circle cx="120" cy="97" r="2.6" fill="#fff"/>
+    <!-- furry eyelids: hidden until a blink -->
+    <g class="ch-lid" opacity="0"><ellipse cx="76" cy="100" rx="12.4" ry="14" fill="${fur}" stroke="${OUT}" stroke-width="2.6"/></g>
+    <g class="ch-lid" opacity="0"><ellipse cx="124" cy="100" rx="12.4" ry="14" fill="${fur}" stroke="${OUT}" stroke-width="2.6"/></g>
     <!-- nose & mouth -->
     <path d="M90 113 Q100 108 110 113 Q106 122 100 122 Q94 122 90 113Z" fill="${OUT}"/>
     <ellipse cx="96" cy="113" rx="2.6" ry="1.4" fill="#fff" opacity=".6"/>
@@ -303,7 +304,7 @@ export function doctorSVG() {
     { skin: SKIN[2], hair: 'bob', hairColor: '#5A3A2E', hat: 'doc', eyes: 'big', mouth: 'smile', shirt: '#FFFFFF', collar: 'stetho' },
     `<g transform="translate(150 150)">
        <path d="M0 -24 L22 -16 V2 C22 16 10 24 0 28 C-10 24 -22 16 -22 2 V-16Z" ${st('#5BD1A8')}/>
-       <path d="M0 -10 C-4 -18 -16 -14 -12 -4 C-9 3 0 9 0 9 C0 9 9 3 12 -4 C16 -14 4 -18 0 -10Z" fill="#FF6F91" stroke="${OUT}" stroke-width="2"/>
+       <g class="ch-beat"><path d="M0 -10 C-4 -18 -16 -14 -12 -4 C-9 3 0 9 0 9 C0 9 9 3 12 -4 C16 -14 4 -18 0 -10Z" fill="#FF6F91" stroke="${OUT}" stroke-width="2"/></g>
      </g>`,
     `${sparkle(36, 44, 0.8, '#fff')}${sparkle(168, 60, 0.6, '#fff')}`);
 }
@@ -318,9 +319,9 @@ export function seerSVG() {
     `<g transform="translate(100 172)">
        <ellipse cx="0" cy="18" rx="30" ry="9" ${st('#C99A5B')}/>
        <circle cx="0" cy="-6" r="24" fill="#9FE8FF" stroke="${OUT}" stroke-width="${SW}" opacity=".95"/>
-       <circle cx="0" cy="-6" r="16" fill="#E6FBFF" opacity=".65"/>
+       <circle class="ch-glow" cx="0" cy="-6" r="16" fill="#E6FBFF" opacity=".65"/>
        <path d="M-12 -14 q6 -8 14 -6" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round"/>
-       <circle cx="4" cy="-4" r="4" fill="#B78CFF"/>
+       <g class="ch-swirl"><circle cx="4" cy="-4" r="4" fill="#B78CFF"/></g>
      </g>`,
     `${sparkle(30, 40, 0.9)}${sparkle(168, 36, 0.7)}${sparkle(176, 120, 0.5)}${sparkle(24, 130, 0.5)}
      <circle cx="150" cy="80" r="1.6" fill="#fff"/><circle cx="46" cy="96" r="1.4" fill="#fff"/>`);

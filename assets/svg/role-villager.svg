@@ -6,7 +6,7 @@
       <clipPath id="cp-villager"><circle cx="100" cy="100" r="96"/></clipPath>
     </defs>
     <circle cx="100" cy="100" r="96" fill="url(#g-villager)"/>
-    <g clip-path="url(#cp-villager)"><path transform="translate(38 48) scale(0.8)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/><path transform="translate(170 50) scale(0.6)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/>
+    <g clip-path="url(#cp-villager)"><path class="ch-spark" transform="translate(38 48) scale(0.8)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/><path class="ch-spark" transform="translate(170 50) scale(0.6)" d="M0 -9 C1.5 -2 2 -1.5 9 0 C2 1.5 1.5 2 0 9 C-1.5 2 -2 1.5 -9 0 C-2 -1.5 -1.5 -2 0 -9Z" fill="#fff"/>
      <ellipse cx="160" cy="34" rx="18" ry="7" fill="#fff" opacity=".7"/><ellipse cx="38" cy="140" rx="14" ry="5" fill="#fff" opacity=".5"/><g transform="translate(22 30) scale(1.3)">
     
     
@@ -17,7 +17,7 @@
     <ellipse cx="60" cy="60" rx="29" ry="29.5" fill="#C98E63" stroke="#3A2E4D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
     <ellipse cx="41" cy="71" rx="5.5" ry="3.3" fill="#FF8FA3" opacity=".55"/><ellipse cx="79" cy="71" rx="5.5" ry="3.3" fill="#FF8FA3" opacity=".55"/>
     <circle cx="39" cy="67" r="1.1" fill="#B9775A"/><circle cx="42" cy="70" r="1.1" fill="#B9775A"/><circle cx="44" cy="66" r="1.1" fill="#B9775A"/><circle cx="76" cy="66" r="1.1" fill="#B9775A"/><circle cx="78" cy="70" r="1.1" fill="#B9775A"/><circle cx="81" cy="67" r="1.1" fill="#B9775A"/>
-    <path d="M43 62 q5 -6 10 0" fill="none" stroke="#3A2E4D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M67 62 q5 -6 10 0" fill="none" stroke="#3A2E4D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <g class="ch-blink"><path d="M43 62 q5 -6 10 0" fill="none" stroke="#3A2E4D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M67 62 q5 -6 10 0" fill="none" stroke="#3A2E4D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>
     
     <path d="M52 72 Q60 84 68 72 Z" fill="#B4475B" stroke="#3A2E4D" stroke-width="2.4" stroke-linejoin="round"/>
         <path d="M55.5 77 Q60 80.5 64.5 77" fill="#FF8C9B"/>

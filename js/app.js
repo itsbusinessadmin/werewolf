@@ -241,7 +241,7 @@ function viewHome() {
   return `
   <div class="topbar" style="justify-content:flex-end;margin-bottom:0">${soundBtn()}</div>
   <section class="hero stack">
-    <div class="wolf">${brandIcon(S.brand.icon)}</div>
+    <div class="wolf anim">${brandIcon(S.brand.icon)}</div>
     <div class="title"><small>${esc(S.brand.village)}</small><h1>${esc(S.brand.name)}</h1></div>
     <p class="muted">${esc(S.brand.tagline)}</p>
     <div class="face-strip">${[0, 4, 7, 9, 11, 2, 14].map((i) => av(i, 46)).join('')}</div>
@@ -368,7 +368,7 @@ function roleBack(role) {
   const R = G.ROLES[role];
   const partners = (S.secret?.partners || []).map(pname);
   return `<div class="stack" style="--rc:${R.color}">
-    <div class="art">${ROLE_SVG[role]}</div>
+    <div class="art anim">${ROLE_SVG[role]}</div>
     <div><span class="teampill" style="--rc:${role === 'werewolf' ? R.color : '#3DBF95'}">${R.team === 'wolves' ? 'Team Wolves 🐺' : 'Team Village 🏡'}</span></div>
     <div class="rolename" style="--rc:${R.color}">${R.name}</div>
     <p class="muted">${R.blurb}</p>
@@ -449,7 +449,7 @@ function pMorning() {
   if (!mo.victim) return `
     <div class="card announce">
       <div class="rays"></div>
-      <div class="big-art">${villagerSVG()}</div>
+      <div class="big-art anim">${villagerSVG()}</div>
       <h2>A peaceful night! ☀️</h2>
       <p class="muted" style="margin-top:8px">Everyone woke up safe and sound. Maybe the doctor saved someone…</p>
     </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
@@ -475,7 +475,7 @@ function graveyard() {
 function pDay() {
   return `
   <div class="card stack center">
-    <div style="width:140px;margin:0 auto">${villagerSVG()}</div>
+    <div class="day-art anim" style="width:140px;margin:0 auto">${villagerSVG()}</div>
     <h2>Debate time! 🗣️</h2>
     <p class="muted">Unmute on Teams and talk it out. Who was acting fishy? Who's defending who?</p>
   </div>
@@ -535,7 +535,7 @@ function pVerdict() {
 function winHero() {
   const w = room().winner;
   return `<div class="card win stack">
-    <div class="art">${w === 'wolves' ? ROLE_SVG.werewolf : ROLE_SVG.villager}</div>
+    <div class="art anim">${w === 'wolves' ? ROLE_SVG.werewolf : ROLE_SVG.villager}</div>
     <h1 style="font-size:36px">${w === 'wolves' ? 'The Werewolves win! 🐺' : 'The Village wins! 🎉'}</h1>
     <p class="muted">${w === 'wolves' ? 'The wolves out-numbered the village. Awoooo!' : 'Every werewolf has been found. Moonhollow is safe!'}</p>
   </div>`;
