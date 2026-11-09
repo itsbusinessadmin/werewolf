@@ -963,7 +963,7 @@ async function loadLastRoom() {
   if (!sess?.code) return;
   try {
     const r = await S.be.get(`rooms/${sess.code}`);
-    if (r && r.moderatorUid === S.uid) S.lastRoom = { code: sess.code, phase: r.phase };
+    if (r && r.moderatorUid === S.uid && !r.closed) S.lastRoom = { code: sess.code, phase: r.phase };
   } catch {}
   render();
 }
@@ -1132,7 +1132,7 @@ function enterRoom(code, isMod) {
   store.set({ code, isMod });
   const base = `rooms/${code}`;
   S.subs.push(S.be.watch(base, (d) => {
-    if (!d) { toast('This game was closed.'); leave(); return; }
+    if (!d || d.closed) { toast('This game was closed.'); leave(); return; }
     const prev = S.room;
     S.room = d;
     if (prev && prev.phase === 'roles' && d.phase === 'roles' && prev.dealtAt !== d.dealtAt) {
@@ -1216,6 +1216,24 @@ async function guarded(fn) {
 }
 
 async function createRoom() {
+  const prev = store.get()?.code;
+  if (prev) {
+    try {
+      const old = await S.be.get(`rooms/${prev}`);
+      if (old && old.moderatorUid === S.uid && !old.closed) {
+        if (old.phase !== 'ended' && old.phase !== 'lobby') {
+          const yes = await askConfirm({
+            icon: 'alert',
+            title: 'End the game in progress?',
+            text: `Room <b>${prev}</b> is still running. Starting a new game closes it, and its players go back to the home screen.`,
+            ok: 'Close it & start new', cancel: 'Keep it', danger: true,
+          });
+          if (!yes) return;
+        }
+        await S.be.update(`rooms/${prev}`, { closed: true, closedAt: Date.now() });
+      }
+    } catch {}
+  }
   let code;
   for (let i = 0; i < 6; i++) { code = G.makeCode(); if (!(await S.be.get(`rooms/${code}`))) break; }
   await S.be.set(`rooms/${code}`, {
@@ -1666,7 +1684,7 @@ async function boot() {
     if (sess?.code) {
       try {
         const r = await S.be.get(`rooms/${sess.code}`);
-        if (r && r.moderatorUid === S.uid && r.phase !== 'ended') return enterRoom(sess.code, true);
+        if (r && r.moderatorUid === S.uid && r.phase !== 'ended' && !r.closed) return enterRoom(sess.code, true);
       } catch {}
     }
     S.view = 'adminHome';
@@ -1675,13 +1693,13 @@ async function boot() {
   }
 
   S.ui.code = (new URLSearchParams(location.search).get('room') || '').toUpperCase().slice(0, 5);
-  if (sess?.code) {
+  if (sess?.code && (!S.ui.code || S.ui.code === sess.code)) {
     try {
       const r = await S.be.get(`rooms/${sess.code}`);
-      if (r && (await S.be.get(`rooms/${sess.code}/players/${S.uid}`))) return enterRoom(sess.code, false);
+      if (r && !r.closed && (await S.be.get(`rooms/${sess.code}/players/${S.uid}`))) return enterRoom(sess.code, false);
     } catch {}
-    store.clear();
   }
+  if (sess?.code) store.clear();
   S.view = S.ui.code ? 'join' : 'home';
   render();
   if (S.view === 'join') watchJoinRoom();
