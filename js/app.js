@@ -243,16 +243,15 @@ function draw() {
 function viewHome() {
   return `
   <div class="topbar" style="justify-content:flex-end;margin-bottom:0">${soundBtn()}</div>
+  <div class="home">
   <section class="hero stack">
     <div class="wolf anim">${brandIcon(S.brand.icon)}</div>
     <div class="title"><small>${esc(S.brand.village)}</small><h1>${esc(S.brand.name)}</h1></div>
     <p class="muted">${esc(S.brand.tagline)}</p>
     <div class="face-strip">${[0, 4, 7, 9, 11, 2, 14].map((i) => av(i, 46)).join('')}</div>
   </section>
-  <div class="stack" style="margin-top:20px">
+  <div class="home-side">
     <button class="btn sun" data-act="goJoin">${ICON.users} Join a game</button>
-  </div>
-  <div style="height:22px"></div>
   <details class="card glass">
     <summary>How to play <span class="muted">· 30 seconds</span></summary>
     <div class="stack small" style="margin-top:12px">
@@ -262,7 +261,8 @@ function viewHome() {
       <p><b>Winning.</b> the village wins when all wolves are gone. The wolves win when there are as many wolves as villagers.</p>
     </div>
   </details>
-  ${S.be?.mode === 'demo' ? `<p class="banner" style="margin-top:14px"><b>Demo mode.</b> Every browser tab is a separate player. Add your Firebase settings in <b>js/config.js</b> to play online with friends.</p>` : ''}`;
+  ${S.be?.mode === 'demo' ? `<p class="banner"><b>Demo mode.</b> Every browser tab is a separate player. Add your Firebase settings in <b>js/config.js</b> to play online with friends.</p>` : ''}
+  </div></div>`;
 }
 
 function viewError() {

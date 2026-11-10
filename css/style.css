@@ -23,6 +23,9 @@
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* the village at the bottom of the screen grows with the screen width */
+  --land-h: clamp(110px, 13.75vw, 220px);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -76,7 +79,7 @@ svg { display: block; }
 .theme-day .orb.moon { transform: translateY(150px) rotate(30deg); opacity: 0; }
 .theme-night .orb.sun { transform: translateY(150px); opacity: 0; }
 
-.land { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; height: 110px; z-index: 0; pointer-events: none; }
+.land { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; height: var(--land-h); z-index: 0; pointer-events: none; }
 .land .h1 { fill: #33296C; } .land .h2 { fill: #261F55; }
 .land .hw { fill: #43387F; } .land .roof { fill: var(--rf); } .land .win { fill: #FFE58A; }
 .land .tr { fill: #2E6E57; } .land .tr2 { fill: #37876A; }
@@ -86,7 +89,7 @@ svg { display: block; }
 .land-day .hw { fill: #FFF6EA; } .land-day .win { fill: #BFDDF2; }
 .land-day .tr { fill: #79BE8E; } .land-day .tr2 { fill: #93D3A3; }
 
-#app { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; padding: 14px 16px calc(120px + env(safe-area-inset-bottom)); }
+#app { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; padding: 14px 16px calc(var(--land-h) + 10px + env(safe-area-inset-bottom)); }
 #app.wide { max-width: 1080px; }
 
 /* ───────── type ───────── */
@@ -413,9 +416,10 @@ button.tile:active:not(:disabled) { transform: scale(.96); transition-duration: 
 .chip.status { gap: 7px; min-width: 0; }
 .chip.status .code { font-family: var(--font-h); letter-spacing: 2px; font-weight: 600; }
 .chip.status i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .4; }
-.orb { width: 54px; height: 54px; bottom: 60px; }
-.orb.moon::before { width: 12px; height: 12px; left: 28px; top: 13px; }
-.orb.moon::after { width: 8px; height: 8px; left: 15px; top: 31px; }
+.orb { width: clamp(54px, 6vw, 88px); height: clamp(54px, 6vw, 88px); bottom: calc(var(--land-h) * .55); }
+@media (min-width: 768px) { .orb { bottom: calc(var(--land-h) * .8); } }
+.orb.moon::before { width: 22%; height: 22%; left: 52%; top: 24%; }
+.orb.moon::after { width: 15%; height: 15%; left: 28%; top: 57%; }
 .sheet .art { width: 140px; margin: 0 auto; }
 body.theme-day { background: #FDE6EE; }
 
@@ -661,3 +665,42 @@ details.card summary .muted { font-weight: 700; }
 /* the moderator's read-only copy sits on a light card */
 .modgrid .chatlog .msg { background: #F1EEFA; color: var(--ink); }
 .modgrid .chatlog .msg b { color: var(--purple-d); }
+
+/* ───────── home: hero + actions (two columns on laptops) ───────── */
+.home-side { display: grid; gap: 20px; margin-top: 20px; }
+.home-side .banner { margin: 0; }
+
+/* ───────── tablets and up ───────── */
+@media (min-width: 768px) {
+  #app { max-width: 760px; padding-left: 24px; padding-right: 24px; }
+  /* single cards keep a comfortable reading width; grids of players use the full width */
+  #app:not(.wide) :is(.card:not(.wolfchat), .flip, .result, .clue, .phasebar, .waiting) { max-width: 560px; margin-inline: auto; }
+  #app:not(.wide) :is(.card:not(.wolfchat), .flip, .result, .clue, .phasebar) { width: 100%; }
+  .center > p, p.center, .hero > p { max-width: 60ch; margin-inline: auto; }
+  h2 { font-size: 28px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 14px; }
+  .tile { padding: 14px 8px 12px; border-radius: 24px; font-size: 15px; }
+  .tile .av { --s: 72px !important; }
+  .ring { width: 108px; height: 108px; }
+  .ring span { font-size: 34px; }
+  .avpick { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+  .flip-inner { min-height: 520px; }
+  #toast { bottom: calc(32px + env(safe-area-inset-bottom)); }
+  .home-side { max-width: 560px; margin-inline: auto; width: 100%; }
+}
+
+/* ───────── laptops & desktops ───────── */
+@media (min-width: 960px) {
+  .home { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; min-height: calc(100dvh - var(--land-h) - 80px); }
+  .home .hero .wolf { width: 260px; }
+  .home .hero h1 { font-size: 56px; }
+  .home-side { margin-top: 0; max-width: none; }
+  .home-side details.card { max-width: none; }
+}
+@media (min-width: 1200px) {
+  #app { max-width: 980px; }
+  #app.with-chat { max-width: 1180px; }
+  #app.wide { max-width: 1200px; }
+  .pgrid { grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
+}
