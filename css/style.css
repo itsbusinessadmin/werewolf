@@ -630,13 +630,23 @@ details.card summary .muted { font-weight: 700; }
 .stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
 
 /* ───────── wolf pack chat ───────── */
-.wolfchat { display: grid; gap: 12px; margin-top: 6px; text-align: left; position: relative; z-index: 1; }
+.wolfchat { display: grid; gap: 12px; text-align: left; position: relative; z-index: 1; }
+.wc-who { color: #C9C0EA; margin-top: -6px; }
+.wc-who b { color: #fff; }
+/* game on the left, wolf chat on the right; stacked on phones */
+.pside { margin-top: 18px; }
+@media (min-width: 720px) {
+  #app.with-chat { max-width: 920px; }
+  .pgrid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+  .pside { margin-top: 0; position: sticky; top: 14px; }
+  .pside .chatlog { max-height: calc(100dvh - 260px); min-height: 160px; }
+}
 .card.glass.wolfchat { background: rgba(33, 26, 82, .94); }
 .wc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .wc-head h3 svg { color: #FFB3C4; }
 .wc-head .small { display: inline-flex; align-items: center; gap: 5px; color: #C9C0EA; font-weight: 700; }
 .wc-head .small svg { width: 13px; height: 13px; }
-.chatlog { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.chatlog { display: grid; gap: 6px; align-content: start; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
 .msg { justify-self: start; max-width: 82%; padding: 8px 12px; border-radius: 16px 16px 16px 6px; background: rgba(255,255,255,.12);
   line-height: 1.4; overflow-wrap: anywhere; }
 .msg b { display: block; font-size: 12px; font-weight: 800; color: #FFB3C4; margin-bottom: 1px; }

@@ -211,6 +211,7 @@ function draw() {
   }
   document.body.className = `theme-${theme}`;
   $app.classList.toggle('wide', (S.view === 'game' && S.isMod) || S.view === 'adminHome');
+  $app.classList.toggle('with-chat', S.view === 'game' && !S.isMod && html.includes('class="pgrid"'));
   // background music follows the game: spooky at night, cheerful by day
   const ph = room().phase;
   SND.music(S.view === 'game'
@@ -333,7 +334,9 @@ function viewPlayer() {
     lobby: pLobby, roles: pRoles, night: pNight, morning: pMorning,
     day: pDay, vote: pVote, verdict: pVerdict, ended: pEnded,
   }[r.phase] || (() => '');
-  return top + phaseBar() + body();
+  // wolves get their chat beside the game (on the right on wide screens, below on phones)
+  const chat = wolfChat();
+  return top + phaseBar() + (chat ? `<div class="pgrid"><div class="pmain">${body()}</div><aside class="pside">${chat}</aside></div>` : body());
 }
 
 function tiles(list, { pick = false, sel = null, disabled = () => false, tag = () => '', counts = null, color = null } = {}) {
@@ -374,7 +377,7 @@ function roleBack(role) {
     <div><span class="teampill" style="--rc:${R.team === 'village' ? '#3DBF95' : R.color}">${R.team === 'wolves' ? 'Team Wolves' : R.team === 'jester' ? 'On your own' : 'Team Village'}</span></div>
     <div class="rolename" style="--rc:${R.color}">${R.name}</div>
     <p class="muted">${R.blurb}</p>
-    ${role === 'werewolf' ? `<p><b>${partners.length ? `Your pack: ${partners.join(', ')}` : 'You are the lone wolf!'}</b></p>` : ''}
+    ${role === 'werewolf' ? `<p><b>${partners.length ? `Your fellow wolf${partners.length > 1 ? 'ves' : ''}: ${partners.join(', ')}` : 'You are the lone wolf!'}</b></p>` : ''}
   </div>`;
 }
 
@@ -388,8 +391,7 @@ function pRoles() {
       <div class="face back">${roleBack(role)}</div>
     </div>
   </div>
-  ${waiting(S.ui.flipped ? 'Tap the card to hide it. Waiting for night' : 'Waiting for night')}
-  ${wolfChat()}`;
+  ${waiting(S.ui.flipped ? 'Tap the card to hide it. Waiting for night' : 'Waiting for night')}`;
 }
 
 function ghostCard(extra = '') {
@@ -414,10 +416,10 @@ function pNight() {
     case 'werewolf':
       title = 'Who will you gobble up tonight?'; color = '#FF6F91';
       hint = wolfKills() > 1
-        ? `Tonight the pack can take up to ${wolfKills()}. Pick different people to take more than one.`
-        : 'If your pack picks different people, the moon decides at random.';
+        ? `Tonight the wolves can take up to ${wolfKills()}. Pick different people to take more than one.`
+        : 'If the wolves pick different people, the moon decides at random. Agree in the wolf chat!';
       list = alive(); disabled = (p) => p.id === S.uid || partners.has(p.id);
-      tag = (p) => (p.id === S.uid || partners.has(p.id) ? 'pack' : '');
+      tag = (p) => (p.id === S.uid || partners.has(p.id) ? 'wolf' : '');
       break;
     case 'doctor':
       title = 'Who will you protect tonight?'; color = '#3DBF95';
@@ -446,7 +448,6 @@ function pNight() {
       </div>` : ''}
     ${tiles(list, { pick: true, sel: picked, disabled, tag, color })}
     <p class="center muted small">${seerResult ? 'That’s your vision for tonight.' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : 'Tap someone to choose.'}</p>
-    ${wolfChat()}
   </div>`;
 }
 
@@ -661,7 +662,7 @@ function viewMod() {
     </div>
     <div class="stack">
       <p class="banner">${ICON.lock} Only you can see this screen. Keep this tab open: it runs the game. Don't share your screen on Teams!</p>
-      ${S.chat.length ? `<div class="card stack"><h3>${ICON.paw} Wolf pack chat</h3><p class="muted small">Only the wolves and you can see this.</p>${chatLog()}</div>` : ''}
+      ${S.chat.length ? `<div class="card stack"><h3>${ICON.paw} Wolf chat</h3><p class="muted small">Only the wolves and you can see this.</p>${chatLog()}</div>` : ''}
       <div class="card stack"><h3>Moderator log</h3>
         <div class="log">${(S.mod?.log || []).slice().reverse().map((l) => `<div data-key="log-${l.t}">${l.text}</div>`).join('') || '<p class="muted small">Things that happen will show up here.</p>'}</div>
       </div>
@@ -696,17 +697,17 @@ function chatLog() {
   return `<div class="chatlog" role="log" aria-live="polite">${S.chat.slice(-60).map((m) => {
     const mine = m.uid === S.uid;
     return `<div class="msg ${mine ? 'mine' : ''}" data-key="m-${m.id}">${mine ? '' : `<b>${pname(m.uid)}</b>`}<span>${esc(m.text)}</span></div>`;
-  }).join('') || '<p class="muted small chat-empty">Say hi to your pack and agree who to visit tonight.</p>'}</div>`;
+  }).join('') || '<p class="muted small chat-empty">Say hi to your fellow wolves and agree who to visit tonight.</p>'}</div>`;
 }
 
 function wolfChat() {
   if (!isLivingWolf() || !CHAT_PHASES.includes(room().phase)) return '';
-  const pack = (S.secret?.partners || []).filter((id) => pl(id)?.alive);
-  return `<section class="card glass wolfchat" aria-label="Wolf pack chat">
-    <div class="wc-head"><h3>${ICON.paw} Pack chat</h3><span class="small">${ICON.lock} Only wolves see this</span></div>
-    ${pack.length ? chatLog() : '<p class="muted small">You are the lone wolf tonight. Nobody to chat with.</p>'}
-    ${pack.length ? `<div class="wc-send">
-      <input class="input" data-bind="chat" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Whisper to your pack…" aria-label="Message your pack" value="${esc(S.ui.chat)}"/>
+  const wolves = (S.secret?.partners || []).filter((id) => pl(id)?.alive);
+  return `<section class="card glass wolfchat" aria-label="Wolf chat">
+    <div class="wc-head"><h3>${ICON.paw} Wolf chat</h3><span class="small">${ICON.lock} Only wolves see this</span></div>
+    ${wolves.length ? `<p class="wc-who small">With ${wolves.map((id) => `<b>${pname(id)}</b>`).join(', ')}</p>${chatLog()}` : '<p class="muted small">You are the only wolf left. Nobody to chat with.</p>'}
+    ${wolves.length ? `<div class="wc-send">
+      <input class="input" data-bind="chat" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Whisper to the wolves…" aria-label="Message the other wolves" value="${esc(S.ui.chat)}"/>
       <button class="btn small" data-act="sendChat" aria-label="Send">${ICON.arrow}</button></div>` : ''}
   </section>`;
 }
@@ -834,7 +835,7 @@ function modControl() {
             <span class="muted small">each morning vote</span></div>
           <div class="field"><label>Wolf kills per night</label>
             <div class="stepper"><button data-act="kills" data-d="-1" aria-label="fewer kills">−</button><b>${killsSetting()}</b><button data-act="kills" data-d="1" aria-label="more kills">+</button></div>
-            <span class="muted small">${killsSetting() >= c.werewolf && c.werewolf > 1 ? 'one per wolf' : killsSetting() === 1 ? 'the pack shares one' : `up to ${killsSetting()} a night`}</span></div>
+            <span class="muted small">${killsSetting() >= c.werewolf && c.werewolf > 1 ? 'one per wolf' : killsSetting() === 1 ? 'the wolves share one' : `up to ${killsSetting()} a night`}</span></div>
         </div>
         ${timersField()}
         <div class="field"><label>Extra clues for the village</label>
