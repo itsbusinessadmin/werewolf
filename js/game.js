@@ -20,12 +20,12 @@ export function suggestWolves(n) {
   if (n <= 5) return 1;
   if (n <= 10) return 2;
   if (n <= 15) return 3;
-  return 4;
+  return Math.max(4, Math.round(n / 7));     // big groups: about 1 wolf for every 7 players
 }
 
 export function maxWolves(n) {
   // werewolves must start out-numbered by everyone else
-  return Math.max(1, Math.min(4, Math.floor((n - 1) / 2)));
+  return Math.max(1, Math.floor((n - 1) / 2));
 }
 
 export function shuffle(arr, rnd = Math.random) {
@@ -39,7 +39,8 @@ export function shuffle(arr, rnd = Math.random) {
 
 /** what the app suggests for a group of n players */
 export function suggestRoles(n) {
-  return { werewolf: suggestWolves(n), doctor: 1, seer: 1, jester: 0 };
+  // more helpers for big groups: about 1 doctor per 25 players and 1 seer per 20
+  return { werewolf: suggestWolves(n), doctor: Math.max(1, Math.round(n / 25)), seer: Math.max(1, Math.round(n / 20)), jester: 0 };
 }
 
 /** '' when the moderator's numbers work, otherwise a friendly reason */

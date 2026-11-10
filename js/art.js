@@ -245,7 +245,50 @@ export const AVATARS = [
   { name: 'Postman Pete',   bg: '#FFE6D5', skin: SKIN[4], hair: 'short',   hairColor: '#20181A', hat: 'beanie', eyes: 'happy', mouth: 'cat',   shirt: '#5B8DEF', extras: ['brows'] },
 ];
 
-export const avatarSVG = (i, opts) => faceSVG(AVATARS[((i % AVATARS.length) + AVATARS.length) % AVATARS.length], opts);
+// ── More villagers for big groups ─────────────────────────────
+// The 18 hand-drawn villagers come first. After them, every index gets its own villager,
+// built from the same hand-drawn parts (hair, hats, eyes, mouths, glasses, scarves…) and
+// picked by a seeded random generator, so index 57 always looks the same on every phone.
+export const AVATAR_COUNT = 400;
+const GEN = {
+  bg: ['#FFD9DE', '#D9F2C9', '#E8DEFF', '#FFE0C2', '#D6E6FF', '#CFF3EF', '#FFF1C2', '#E2F5D5', '#FFE0EC', '#FFEFD6', '#E0EEFF', '#FFDCD2', '#EADCFF', '#D7F4E4', '#FFF4BF', '#FFE3C9', '#DDEBFF', '#FFE6D5'],
+  hair: ['short', 'bangs', 'bun', 'tuft', 'bob', 'long', 'side', 'curly', 'pigtails', 'spiky'],
+  hairColor: ['#C9773E', '#8A5A3B', '#D9D4E4', '#3B2A22', '#2E2438', '#5A3A2E', '#E3B04B', '#241A1A', '#2F2A3A', '#E8743B', '#F2C94C', '#1F1A2B', '#6B3F2A', '#B5482F', '#4A2F25', '#8A4B2E'],
+  hat: ['straw', 'chef', 'beanie', 'beanie-orange', 'beret', 'flowers', 'tophat', 'bow'],
+  eyes: ['dot', 'big', 'happy', 'wink', 'lash', 'sleepy'],
+  mouth: ['smile', 'open', 'o', 'cat', 'grin'],
+  shirt: ['#FF9EB5', '#7CC47F', '#B9A3F0', '#E98B4E', '#5B6FD8', '#FFCE5C', '#8FB8FF', '#F7F2E8', '#FFB86B', '#9CDB9A', '#6FB6E8', '#E5566E', '#A88BEB', '#4FB6B0', '#F2C35B', '#F49AC1', '#5B8DEF'],
+  extras: ['glasses', 'freckles', 'brows', 'earrings'],
+  collar: ['scarf', 'bowtie', 'pearls', 'apron'],
+  trade: ['Potter', 'Cobbler', 'Fiddler', 'Gardener', 'Beekeeper', 'Carpenter', 'Candlemaker', 'Herbalist', 'Lamplighter', 'Ferry', 'Glassblower', 'Knitter', 'Woodcutter', 'Storyteller', 'Cook', 'Mason', 'Clockmaker', 'Toymaker', 'Orchard', 'Shepherd', 'Fisher', 'Miller', 'Weaver', 'Baker'],
+  name: ['Ada', 'Bram', 'Cora', 'Dex', 'Elsie', 'Fitz', 'Gus', 'Hattie', 'Ivo', 'Juno', 'Kit', 'Lou', 'Mo', 'Nell', 'Otto', 'Peg', 'Quin', 'Rosa', 'Sam', 'Tilly', 'Uma', 'Vic', 'Wes', 'Yara', 'Zed', 'Bea', 'Cal', 'Dot', 'Edie', 'Finn'],
+};
+function rng(seed) {                         // mulberry32: tiny, fast, good enough for faces
+  let t = (seed * 2654435761) >>> 0;
+  return () => { t = (t + 0x6D2B79F5) >>> 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+}
+const genCache = {};
+function generatedVillager(i) {
+  if (genCache[i]) return genCache[i];
+  const r = rng(i + 1);
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  const o = {
+    name: `${pick(GEN.trade)} ${pick(GEN.name)}`,
+    bg: pick(GEN.bg), skin: pick(SKIN), hair: pick(GEN.hair), hairColor: pick(GEN.hairColor),
+    eyes: pick(GEN.eyes), mouth: pick(GEN.mouth), shirt: pick(GEN.shirt),
+  };
+  if (r() < 0.45) o.hat = pick(GEN.hat);
+  if (r() < 0.5) o.extras = [pick(GEN.extras), ...(r() < 0.25 ? [pick(GEN.extras)] : [])];
+  if (r() < 0.35) o.collar = pick(GEN.collar);
+  if (r() < 0.14) { o.beard = r() < 0.5 ? 'mustache' : 'full'; o.beardColor = o.hairColor; }
+  return (genCache[i] = o);
+}
+export const avatarData = (i) => {
+  const n = ((Math.floor(i) % AVATAR_COUNT) + AVATAR_COUNT) % AVATAR_COUNT || 0;
+  return n < AVATARS.length ? AVATARS[n] : generatedVillager(n);
+};
+export const avatarName = (i) => avatarData(i).name;
+export const avatarSVG = (i, opts) => faceSVG(avatarData(i), opts);
 
 // ── Role portraits (viewBox 0 0 200 200) ──────────────────────
 function sparkle(x, y, s = 1, c = '#FFF6C9') {
