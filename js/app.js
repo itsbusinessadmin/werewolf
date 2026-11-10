@@ -12,9 +12,10 @@ const S = {
   be: null, uid: null, view: 'loading', brand: { ...DEFAULT_BRAND }, brandLoaded: false,
   code: null, isMod: false,
   room: null, players: [], votes: [], actions: [], secret: null, myAction: null, mod: null,
-  ui: { code: '', name: '', avatar: null, flipped: false, sheet: null, confettiFor: null, draft: null, pin: '', pin2: '', newPin: '' },
+  ui: { code: '', name: '', avatar: null, flipped: false, sheet: null, confettiFor: null, draft: null, pin: '', pin2: '', newPin: '', chat: '' },
   lastRoom: null,
   subs: [], actionSub: null, actionKey: null, joinSub: null, joinPlayers: [],
+  chat: [], chatSub: null, chatKey: null,
   busy: false, resolving: null, seerPending: null,
 };
 
@@ -387,7 +388,8 @@ function pRoles() {
       <div class="face back">${roleBack(role)}</div>
     </div>
   </div>
-  ${waiting(S.ui.flipped ? 'Tap the card to hide it. Waiting for night' : 'Waiting for night')}`;
+  ${waiting(S.ui.flipped ? 'Tap the card to hide it. Waiting for night' : 'Waiting for night')}
+  ${wolfChat()}`;
 }
 
 function ghostCard(extra = '') {
@@ -444,6 +446,7 @@ function pNight() {
       </div>` : ''}
     ${tiles(list, { pick: true, sel: picked, disabled, tag, color })}
     <p class="center muted small">${seerResult ? 'That’s your vision for tonight.' : picked ? `You picked <b>${pname(picked)}</b>. ${role === 'seer' ? '' : 'You can change until the moon sets.'}` : 'Tap someone to choose.'}</p>
+    ${wolfChat()}
   </div>`;
 }
 
@@ -658,11 +661,69 @@ function viewMod() {
     </div>
     <div class="stack">
       <p class="banner">${ICON.lock} Only you can see this screen. Keep this tab open: it runs the game. Don't share your screen on Teams!</p>
+      ${S.chat.length ? `<div class="card stack"><h3>${ICON.paw} Wolf pack chat</h3><p class="muted small">Only the wolves and you can see this.</p>${chatLog()}</div>` : ''}
       <div class="card stack"><h3>Moderator log</h3>
         <div class="log">${(S.mod?.log || []).slice().reverse().map((l) => `<div data-key="log-${l.t}">${l.text}</div>`).join('') || '<p class="muted small">Things that happen will show up here.</p>'}</div>
       </div>
     </div>
   </div>`;
+}
+
+// ───────── wolf pack chat ─────────
+// Only the wolves of the current deal (and the moderator) can read it; the database rules
+// enforce that too. Living wolves can write while roles are shown and at night.
+const CHAT_PHASES = ['roles', 'night'];
+const isLivingWolf = () => !S.isMod && S.secret?.role === 'werewolf' && !!me()?.alive;
+
+function watchWolfChat() {
+  const deal = room().dealtAt;
+  const want = deal && (S.isMod || S.secret?.role === 'werewolf') ? `${S.code}|${deal}` : null;
+  if (want === S.chatKey) return;
+  S.chatSub?.(); S.chatSub = null; S.chat = []; S.chatKey = want;
+  if (!want) return;
+  S.chatSub = S.be.watchCol(`rooms/${S.code}/wolfchat`, (list) => {
+    const before = S.chat.length;
+    S.chat = list.filter((m) => m.deal === deal).sort((a, b) => a.t - b.t);
+    const fresh = S.chat.slice(before);
+    // no sound: a ping on a Teams call would give a wolf away. A short buzz is enough.
+    if (before && fresh.some((m) => m.uid !== S.uid)) navigator.vibrate?.(30);
+    render();
+    setTimeout(() => document.querySelectorAll('.chatlog').forEach((el) => { el.scrollTop = el.scrollHeight; }), 40);
+  }, ['deal', deal]);
+}
+
+function chatLog() {
+  return `<div class="chatlog" role="log" aria-live="polite">${S.chat.slice(-60).map((m) => {
+    const mine = m.uid === S.uid;
+    return `<div class="msg ${mine ? 'mine' : ''}" data-key="m-${m.id}">${mine ? '' : `<b>${pname(m.uid)}</b>`}<span>${esc(m.text)}</span></div>`;
+  }).join('') || '<p class="muted small chat-empty">Say hi to your pack and agree who to visit tonight.</p>'}</div>`;
+}
+
+function wolfChat() {
+  if (!isLivingWolf() || !CHAT_PHASES.includes(room().phase)) return '';
+  const pack = (S.secret?.partners || []).filter((id) => pl(id)?.alive);
+  return `<section class="card glass wolfchat" aria-label="Wolf pack chat">
+    <div class="wc-head"><h3>${ICON.paw} Pack chat</h3><span class="small">${ICON.lock} Only wolves see this</span></div>
+    ${pack.length ? chatLog() : '<p class="muted small">You are the lone wolf tonight. Nobody to chat with.</p>'}
+    ${pack.length ? `<div class="wc-send">
+      <input class="input" data-bind="chat" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Whisper to your pack…" aria-label="Message your pack" value="${esc(S.ui.chat)}"/>
+      <button class="btn small" data-act="sendChat" aria-label="Send">${ICON.arrow}</button></div>` : ''}
+  </section>`;
+}
+
+async function sendWolfChat() {
+  const text = (S.ui.chat || '').trim().slice(0, 200);
+  if (!text || !isLivingWolf() || !CHAT_PHASES.includes(room().phase)) return;
+  S.ui.chat = '';
+  const input = document.querySelector('[data-bind="chat"]');
+  if (input) input.value = '';
+  const t = Date.now();
+  try {
+    await S.be.set(`rooms/${S.code}/wolfchat/${t}_${S.uid}`, { uid: S.uid, text, t, deal: room().dealtAt });
+  } catch (e) {
+    S.ui.chat = text; if (input) input.value = text;
+    toast("Couldn't send: " + e.message);
+  }
 }
 
 function script(t) { return `<div class="script">${t}</div>`; }
@@ -1153,6 +1214,7 @@ function unsubAll() {
   S.subs.forEach((u) => u()); S.subs = [];
   S.actionSub?.(); S.actionSub = null; S.actionKey = null;
   S.joinSub?.(); S.joinSub = null;
+  S.chatSub?.(); S.chatSub = null; S.chatKey = null; S.chat = [];
 }
 
 function enterRoom(code, isMod) {
@@ -1178,6 +1240,7 @@ function enterRoom(code, isMod) {
       navigator.vibrate?.(60);
     }
     if (!isMod) watchMyAction();
+    watchWolfChat();
     render();
   }));
   S.subs.push(S.be.watchCol(`${base}/players`, (list) => {
@@ -1194,6 +1257,7 @@ function enterRoom(code, isMod) {
     S.subs.push(S.be.watch(`${base}/secrets/${S.uid}`, (d) => {
       const had = S.secret?.seer?.[room().round];
       S.secret = d;
+      watchWolfChat();
       if (!had && d?.seer?.[room().round]) SND.play('seer');
       render();
     }));
@@ -1555,6 +1619,7 @@ const ACT = {
     if (v === killsSetting(st)) return toast(v === max ? `Max ${max}: one per wolf` : 'At least 1');
     guarded(() => S.be.update(P(), { 'settings.killsPerNight': v }));
   },
+  sendChat: () => sendWolfChat(),
   vpp: (d) => {
     const v = Math.min(3, Math.max(1, (room().settings?.votesPerPlayer ?? 1) + +d.d));
     guarded(() => S.be.update(P(), { 'settings.votesPerPlayer': v }));
@@ -1679,6 +1744,7 @@ document.addEventListener('change', async (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.ui.confirm) { closeConfirm(false); return; }
   if (e.key === 'Enter' && e.target.matches('input')) {
+    if (e.target.dataset.bind === 'chat') { e.preventDefault(); ACT.sendChat(); return; }
     if (S.view === 'join') ACT.join();
     if (S.view === 'adminLogin') ACT.adminLogin();
     if (S.view === 'adminSetup') ACT.adminSetup();

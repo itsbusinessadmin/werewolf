@@ -46,8 +46,10 @@ export async function createFirebaseBackend(config) {
     watch(path, cb) {
       return fs.onSnapshot(ref(path), (s) => cb(s.exists() ? s.data() : null), (e) => console.warn('watch', path, e.message));
     },
-    watchCol(path, cb) {
-      return fs.onSnapshot(fs.collection(db, path),
+    // where = optional [field, value]: only docs whose field equals value (security rules may require it)
+    watchCol(path, cb, where = null) {
+      const col = fs.collection(db, path);
+      return fs.onSnapshot(where ? fs.query(col, fs.where(where[0], '==', where[1])) : col,
         (qs) => cb(qs.docs.map(d => ({ id: d.id, ...d.data() }))),
         (e) => console.warn('watchCol', path, e.message));
     },
