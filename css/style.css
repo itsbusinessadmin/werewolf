@@ -577,5 +577,54 @@ details.card summary { min-height: 28px; }
 details.card summary .muted { font-weight: 700; }
 
 /* ───────── more than one victim in a night ───────── */
-.big-av.victims { gap: 14px; flex-wrap: wrap; }
+.big-av.victims { gap: 14px 34px; flex-wrap: wrap; }
+
+/* ───────── night victim: the werewolf bite, played once on the morning reveal ─────────
+   jaws appear open at the avatar's top-right edge → snap shut (avatar jolts, a scalloped
+   bite goes missing) → jaws let go → colour drains → ghost floats up.
+   Several victims follow each other 180ms apart. */
+@property --bite { syntax: '<percentage>'; inherits: false; initial-value: 0.1%; }
+.bitten { --d: calc(260ms + var(--i, 0) * 180ms); position: relative; }
+/* the jaws are centred on the bite point (30° up from the right on the avatar's rim), lying along the rim */
+.bite { position: absolute; width: 80%; aspect-ratio: 1; left: calc(95% - 40%); top: calc(24% - 40%);
+  transform: rotate(60deg); pointer-events: none; z-index: 2; }
+.bite .jaw { position: absolute; left: 0; right: 0; height: 50%; opacity: 0; will-change: transform, opacity; }
+.bite .jaw svg { width: 100%; height: 100%; }
+.bite .jaw.up { top: 0; animation: chomp-up 560ms var(--d) both; }
+.bite .jaw.down { bottom: 0; animation: chomp-down 560ms var(--d) both; }
+@keyframes chomp-up {
+  0%   { opacity: 0; transform: translateY(-34%); animation-timing-function: var(--ease-out); }
+  20%  { opacity: 1; transform: translateY(-34%); animation-timing-function: var(--ease-in-out); }
+  55%  { opacity: 1; transform: translateY(14%); }
+  75%  { opacity: 1; transform: translateY(14%); animation-timing-function: var(--ease-out); }
+  100% { opacity: 0; transform: translateY(-22%); }
+}
+@keyframes chomp-down {
+  0%   { opacity: 0; transform: scaleY(-1) translateY(-34%); animation-timing-function: var(--ease-out); }
+  20%  { opacity: 1; transform: scaleY(-1) translateY(-34%); animation-timing-function: var(--ease-in-out); }
+  55%  { opacity: 1; transform: scaleY(-1) translateY(14%); }
+  75%  { opacity: 1; transform: scaleY(-1) translateY(14%); animation-timing-function: var(--ease-out); }
+  100% { opacity: 0; transform: scaleY(-1) translateY(-22%); }
+}
+/* the moment the teeth meet: a short jolt, and three tooth-shaped bites go missing from the rim */
+.bitten .av { animation: jolt 240ms var(--ease-out) calc(var(--d) + 310ms); }
+@keyframes jolt { 25% { translate: -4px 3px; } 60% { translate: 2px -1px; } }
+.bitten .av > svg {
+  --m: transparent 97%, #000 100%;
+  -webkit-mask: radial-gradient(var(--bite) var(--bite) at 103% 41%, var(--m)), radial-gradient(var(--bite) var(--bite) at 97% 22%, var(--m)), radial-gradient(var(--bite) var(--bite) at 85% 7%, var(--m));
+  -webkit-mask-composite: source-in;
+  mask: radial-gradient(var(--bite) var(--bite) at 103% 41%, var(--m)), radial-gradient(var(--bite) var(--bite) at 97% 22%, var(--m)), radial-gradient(var(--bite) var(--bite) at 85% 7%, var(--m));
+  mask-composite: intersect;
+}
+.announce .bitten .av.dead > svg { animation: chomped 140ms var(--ease-out) calc(var(--d) + 310ms) both, drain .8s ease calc(var(--d) + 440ms) both; }
+@keyframes chomped { from { --bite: 0.1%; } to { --bite: 17%; } }
+/* the existing death beats now wait for the bite */
+.announce .bitten .av.dead .ghostbadge { animation-delay: calc(var(--d) + 820ms), calc(var(--d) + 1520ms); }
+.stamps .stamp { animation-delay: 1.1s; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* no snapping jaws or jolt: the bite simply appears, then the colour drains */
+  .bite { display: none; }
+  .bitten .av { animation: none; }
+}
 .stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; }

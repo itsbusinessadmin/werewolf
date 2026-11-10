@@ -1,6 +1,6 @@
 import { firebaseConfig } from './config.js';
 import { createLocalBackend } from './backend-local.js';
-import { AVATARS, avatarSVG, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON } from './art.js';
+import { AVATARS, avatarSVG, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON, biteSVG } from './art.js';
 import * as G from './game.js';
 import * as SND from './sound.js';
 
@@ -464,7 +464,7 @@ function pMorning() {
   return `
     <div class="card announce">
       <div class="rays" style="--ray:#ECE6FF"></div>
-      <div class="big-av victims">${vs.map((id) => av(pl(id)?.avatar, vs.length > 1 ? 92 : 120, { dead: true })).join('')}</div>
+      <div class="big-av victims">${vs.map((id, i) => `<div class="bitten" style="--i:${i}">${av(pl(id)?.avatar, vs.length > 1 ? 92 : 120, { dead: true })}${BITE}</div>`).join('')}</div>
       <h2>${title}</h2>
       <p class="muted" style="margin-top:6px">The village found ${vs.length > 1 ? 'them' : isMe ? 'you' : 'them'} at sunrise.</p>
       <div class="stamps">${vs.map((id) => { const role = pl(id)?.role; return role ? `<div class="stamp" style="--rc:${RC(role)}">${vs.length > 1 ? `${esc(pl(id)?.name)}: ` : 'They were a '}${G.ROLES[role].name}</div>` : ''; }).join('')}</div>
@@ -500,6 +500,7 @@ const victimsOf = (mo) => mo?.victims || (mo?.victim ? [mo.victim] : []);
 const killsSetting = (st = room().settings || {}) => Math.max(1, Math.min(st.killsPerNight ?? 1, st.wolves ?? 2));
 // what the wolves can actually take tonight: also capped by the living pack
 const wolfKills = () => Math.max(1, Math.min(killsSetting(), 1 + (S.secret?.partners || []).filter((id) => pl(id)?.alive).length));
+const BITE = biteSVG();
 const votesEach = () => G.votesAllowed(room().settings?.votesPerPlayer, alive().length);
 
 function pVote() {

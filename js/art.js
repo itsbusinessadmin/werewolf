@@ -370,6 +370,23 @@ export function jesterSVG() {
 
 export const ROLE_ART = { werewolf: werewolfSVG, doctor: doctorSVG, seer: seerSVG, villager: villagerSVG, jester: jesterSVG };
 
+// ── Werewolf bite (overlay for a night victim's avatar) ───────
+// Two rounded jaws in the werewolf's fur colour. CSS snaps them shut on the avatar's edge;
+// the bite they leave is a mask on the avatar itself (see .bitten in style.css).
+export function biteSVG() {
+  const gum = '#6C6496';
+  // teeth hang off the gum's curved edge (a quadratic from (2,22) via (50,34) to (98,22)); fangs are longer
+  const teeth = [16, 27, 38, 50, 62, 73, 84].map((x) => {
+    const t = (x - 2) / 96, y0 = 22 + 24 * t * (1 - t);
+    const len = x === 27 || x === 73 ? 17 : 10;
+    return `<path d="M${x - 4.6} ${(y0 - 2).toFixed(1)} L${x} ${(y0 + len).toFixed(1)} L${x + 4.6} ${(y0 - 2).toFixed(1)}Z" fill="#FFFFFF" stroke="${OUT}" stroke-width="2" stroke-linejoin="round"/>`;
+  }).join('');
+  const jaw = `<svg viewBox="0 0 100 50" aria-hidden="true">${teeth}
+    <path d="M2 22 Q2 5 20 5 H80 Q98 5 98 22 Q50 34 2 22Z" fill="${gum}" stroke="${OUT}" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M22 12 H62" stroke="#8E86B8" stroke-width="3" stroke-linecap="round"/></svg>`;
+  return `<div class="bite" aria-hidden="true"><div class="jaw up">${jaw}</div><div class="jaw down">${jaw}</div></div>`;
+}
+
 export function ghostSVG() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" role="img" aria-label="ghost">
     <path d="M12 52 V26 C12 14 20 6 30 6 C40 6 48 14 48 26 V52 L42 47 L36 52 L30 47 L24 52 L18 47Z" ${st('#F6F3FF')}/>
