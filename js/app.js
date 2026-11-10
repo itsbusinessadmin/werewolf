@@ -1,6 +1,6 @@
 import { firebaseConfig } from './config.js';
 import { createLocalBackend } from './backend-local.js';
-import { AVATARS, avatarSVG, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON, biteSVG } from './art.js';
+import { AVATAR_COUNT, avatarName, avatarSVG, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON, biteSVG } from './art.js';
 import * as G from './game.js';
 import * as SND from './sound.js';
 
@@ -278,21 +278,33 @@ function viewJoin() {
       <input id="f-code" class="input code" data-bind="code" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="ABCDE" value="${esc(S.ui.code)}"/></div>
     <div class="field"><label for="f-name">Your name</label>
       <input id="f-name" class="input" data-bind="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Jordan" value="${esc(S.ui.name)}"/></div>
-    <div class="field"><label>Pick your villager</label><div class="avpick" id="avgrid"></div></div>
+    <div class="field"><label>Pick your villager</label><div class="avpick" id="avgrid"></div>
+      <button class="btn ghost small avmore" id="avmore" data-act="moreAv" hidden>${ICON.refresh} Show other villagers</button></div>
     <button class="btn mint" data-act="join">${ICON.arrow} Join game</button>
   </div>`;
 }
 
+// Avatars: 18 hand-drawn villagers, then generated ones (see art.js), so even 100+ players
+// each get their own face. The picker shows one page of free villagers at a time.
+const AV_PAGE = 24;
+const freeAvatars = (taken) => Array.from({ length: AVATAR_COUNT }, (_, i) => i).filter((i) => !taken.has(i));
 function drawAvGrid() {
   const el = document.getElementById('avgrid');
   if (!el) return;
   const taken = new Set(S.joinPlayers.filter((p) => p.id !== S.uid).map((p) => p.avatar));
+  const free = freeAvatars(taken);
   if (S.ui.avatar == null || taken.has(S.ui.avatar)) {
-    const free = AVATARS.map((_, i) => i).filter((i) => !taken.has(i));
-    S.ui.avatar = free.length ? free[Math.floor(Math.random() * free.length)] : 0;
+    const firstPage = free.slice(0, AV_PAGE);
+    S.ui.avatar = firstPage.length ? firstPage[Math.floor(Math.random() * firstPage.length)] : 0;
   }
-  el.innerHTML = AVATARS.map((a, i) => `
-    <button class="${i === S.ui.avatar ? 'on' : ''} ${taken.has(i) ? 'taken' : ''}" data-act="pickAv" data-i="${i}" title="${esc(a.name)}${taken.has(i) ? ' (taken)' : ''}" ${taken.has(i) ? 'disabled' : ''}>${av(i, 0)}</button>`).join('');
+  const pages = Math.max(1, Math.ceil(free.length / AV_PAGE));
+  const page = (S.ui.avPage || 0) % pages;
+  const shown = free.slice(page * AV_PAGE, page * AV_PAGE + AV_PAGE);
+  if (!shown.includes(S.ui.avatar)) shown.unshift(S.ui.avatar);     // keep your pick in view
+  el.innerHTML = shown.map((i) => `
+    <button class="${i === S.ui.avatar ? 'on' : ''}" data-act="pickAv" data-i="${i}" title="${esc(avatarName(i))}" aria-label="${esc(avatarName(i))}" aria-pressed="${i === S.ui.avatar}">${av(i, 0)}</button>`).join('');
+  const more = document.getElementById('avmore');
+  if (more) more.hidden = pages < 2;
 }
 
 function watchJoinRoom() {
@@ -340,7 +352,18 @@ function viewPlayer() {
 }
 
 function tiles(list, { pick = false, sel = null, disabled = () => false, tag = () => '', counts = null, color = null } = {}) {
-  return `<div class="grid">${list.map((p) => {
+  // big groups: a name search above the grid you pick from
+  let search = '';
+  if (pick && list.length > 24) {
+    const q = (S.ui.find || '').trim().toLowerCase();
+    search = `<div class="find"><input class="input" type="search" data-bind="find" autocomplete="off" placeholder="Find a villager by name…" aria-label="Find a villager by name" value="${esc(S.ui.find || '')}"/></div>`;
+    if (q) {
+      const picked = new Set(Array.isArray(sel) ? sel : [sel]);
+      list = list.filter((p) => p.name.toLowerCase().includes(q) || picked.has(p.id));
+      if (!list.length) return `${search}<p class="center muted small">Nobody called “${esc(S.ui.find)}”.</p>`;
+    }
+  }
+  return `${search}<div class="grid">${list.map((p) => {
     const dead = !p.alive;
     const t = tag(p);
     const el = pick ? 'button' : 'div';
@@ -737,6 +760,7 @@ function roleCounts(st = room().settings || {}) {
 const specialCount = (c) => c.werewolf + c.doctor + c.seer + (c.jester || 0);
 const WIN_LOG = { wolves: 'Werewolves win.', village: 'Village wins.', jester: 'The Jester wins!' };
 // optional: the moderator plans the player count in advance (null = use whoever joined)
+const MAX_PLAYERS = 200;   // a Firestore batch holds 500 writes; dealing or revealing 200 players stays well inside
 const planned = (st = room().settings || {}) => (Number.isInteger(st.plannedPlayers) ? st.plannedPlayers : null);
 const planN = () => planned() ?? S.players.length;
 
@@ -1234,6 +1258,7 @@ function enterRoom(code, isMod) {
       if (!isMod) toast('Roles were reshuffled. Tap your card to see your new role.');
     }
     if (prev && prev.phase !== d.phase) {
+      S.ui.find = '';
       phaseSound(d);
       if (d.phase === 'roles') S.ui.flipped = false;
       S.ui.sheet = null;
@@ -1499,8 +1524,8 @@ async function addBot() {
   const usedNames = new Set(S.players.map((p) => p.name));
   const name = 'Bot ' + (BOT_NAMES.find((n) => !usedNames.has('Bot ' + n)) || Math.floor(Math.random() * 99));
   const taken = new Set(S.players.map((p) => p.avatar));
-  const free = AVATARS.map((_, i) => i).filter((i) => !taken.has(i));
-  const avatar = free.length ? free[Math.floor(Math.random() * free.length)] : Math.floor(Math.random() * AVATARS.length);
+  const free = freeAvatars(taken);
+  const avatar = free.length ? free[Math.floor(Math.random() * Math.min(free.length, AV_PAGE))] : Math.floor(Math.random() * AVATAR_COUNT);
   const id = 'bot_' + Math.random().toString(36).slice(2, 8);
   await S.be.set(P(`/players/${id}`), { name, avatar, alive: true, joinedAt: Date.now(), bot: true });
 }
@@ -1554,6 +1579,7 @@ const ACT = {
   create: () => guarded(createRoom),
   join: () => guarded(joinGame),
   pickAv: (d) => { S.ui.avatar = +d.i; drawAvGrid(); },
+  moreAv: () => { S.ui.avPage = (S.ui.avPage || 0) + 1; drawAvGrid(); },
   leave: async () => {
     if (S.isMod) {
       const r = room();
@@ -1644,13 +1670,13 @@ const ACT = {
     if (planned()) return guarded(() => S.be.update(P(), { 'settings.plannedPlayers': null }));
     const c = roleCounts();
     const start = Math.max(S.players.length, G.MIN_PLAYERS, specialCount(c) + c.werewolf, 8);
-    guarded(() => S.be.update(P(), { 'settings.plannedPlayers': Math.min(30, start) }));
+    guarded(() => S.be.update(P(), { 'settings.plannedPlayers': Math.min(MAX_PLAYERS, start) }));
   },
   planned: (d) => {
     const c = roleCounts();
     const minN = Math.max(G.MIN_PLAYERS, specialCount(c));
-    const next = Math.min(30, Math.max(minN, planN() + +d.d));
-    if (next === planN()) return toast(+d.d < 0 ? `Can't go below ${minN}: lower a role first` : 'Max 30 players');
+    const next = Math.min(MAX_PLAYERS, Math.max(minN, planN() + +d.d));
+    if (next === planN()) return toast(+d.d < 0 ? `Can't go below ${minN}: lower a role first` : `Max ${MAX_PLAYERS} players`);
     guarded(() => S.be.update(P(), { 'settings.plannedPlayers': next }));
   },
   roleCount: (d) => {
@@ -1659,7 +1685,7 @@ const ACT = {
     const cur = roleCounts();
     const now = { wolves: cur.werewolf, doctors: cur.doctor, seers: cur.seer, jesters: cur.jester }[key];
     const min = key === 'wolves' ? 1 : 0;
-    const max = key === 'wolves' ? 6 : key === 'jesters' ? 1 : 3;
+    const max = key === 'wolves' ? 40 : key === 'jesters' ? 1 : 12;
     const next = Math.min(max, Math.max(min, now + +d.d));
     if (next === now) return toast(next === min ? (key === 'wolves' ? 'You need at least 1 werewolf' : 'Already at 0') : `Max ${max} here`);
     guarded(() => S.be.update(P(), { [`settings.${key}`]: next }));
@@ -1734,6 +1760,7 @@ document.addEventListener('input', (e) => {
     const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     e.target.value = v; S.ui.code = v; watchJoinRoom();
   } else S.ui[k] = e.target.value;
+  if (k === 'find') render();
 });
 document.addEventListener('change', async (e) => {
   if (e.target.dataset?.file !== 'icon' || !e.target.files?.[0]) return;

@@ -62,8 +62,9 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 ### The rules this app uses
 | Rule | Setting |
 |---|---|
-| Roles | Moderator sets how many **werewolves (1–6)**, **doctors (0–3)**, **seers (0–3)** and an optional **Jester (0–1)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
+| Roles | Moderator sets how many **werewolves (1–40)**, **doctors (0–12)**, **seers (0–12)** and an optional **Jester (0–1)**; everyone else is a villager. ✨ *Use suggested* fills in a good mix for the group size |
 | 🤖 Automatic mode (on by default) | The app runs every phase by itself on timers the admin sets: **look at roles, night, morning news, debate, voting, verdict**, until someone wins. The moderator can still **⏸ pause, +30s or ⏭ skip**. With a planned player count the game even **starts itself** 10s after everyone joins. *End voting early* closes the vote once everyone has used all their votes. Turn it off to press every button yourself |
+| Big groups (up to 200 players) | Every player gets their own face: 18 hand-drawn villagers plus hundreds of generated ones in the same style (the picker shows 24 at a time, *Show other villagers* for more). *Use suggested* scales the roles (about 1 wolf per 7 players). With more than 24 people to pick from, the night and vote screens get a name search. Note: the free Firebase plan allows 50,000 reads a day, which a 100-player game can use up; switch the project to the pay-as-you-go **Blaze** plan for big games (it costs a few cents per game) |
 | Planned player count (optional) | Switch on **👥 Plan the player count** to set how many players you expect. You can then set the exact number of villagers too, and the game waits until that many have joined. Anyone extra becomes a villager |
 | Dealing | 🎲 **Random**: the app shuffles all players and hands out the roles; nobody (not even the moderator) chooses. **Reshuffle roles** re-deals before night 1 |
 | Several doctors | Each protects one person; anyone protected by any doctor survives. Each doctor can't protect the same person two nights in a row |

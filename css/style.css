@@ -704,3 +704,11 @@ details.card summary .muted { font-weight: 700; }
   .pgrid { grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
 }
+
+/* ───────── big groups ───────── */
+.find { margin-bottom: 4px; }
+.find .input { font-size: 16px; padding: 11px 16px; border-radius: 999px; }
+.theme-night .find .input { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.16); color: #fff; }
+.theme-night .find .input::placeholder { color: #B9B0DA; }
+.avmore { margin: 10px auto 0; display: flex; }
+.avmore[hidden] { display: none; }
