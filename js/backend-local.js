@@ -39,7 +39,8 @@ export function createLocalBackend() {
     }
     for (const w of colWatchers) {
       const list = Object.keys(db).filter(p => isChild(w.path, p)).sort()
-        .map(p => ({ id: p.split('/').pop(), ...db[p] }));
+        .map(p => ({ id: p.split('/').pop(), ...db[p] }))
+        .filter(d => !w.where || d[w.where[0]] === w.where[1]);
       const s = JSON.stringify(list);
       if (s !== w.last) { w.last = s; w.cb(clone(list)); }
     }
@@ -85,8 +86,8 @@ export function createLocalBackend() {
       queueMicrotask(notify);
       return () => docWatchers.delete(w);
     },
-    watchCol(path, cb) {
-      const w = { path, cb, last: undefined };
+    watchCol(path, cb, where = null) {
+      const w = { path, cb, where, last: undefined };
       colWatchers.add(w);
       queueMicrotask(notify);
       return () => colWatchers.delete(w);

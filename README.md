@@ -32,6 +32,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 2. **Build → Authentication → Get started → Sign-in method →** turn on **Anonymous**.
 3. **Build → Firestore Database → Create database**. Pick a location near you and choose **production mode**.
 4. In Firestore, open the **Rules** tab. Paste in the whole `firestore.rules` file from this folder and click **Publish**.
+   > **Updating the app?** Whenever `firestore.rules` changes (for example the wolf pack chat added rules), paste it in and **Publish** again, or the new feature will be blocked online.
    These rules stop players from peeking at other people's roles.
 5. Click **Project settings (⚙️) → General → Your apps → `</>` Web**, register an app (no hosting needed), then copy the `firebaseConfig` values.
 6. Paste them into **`js/config.js`**.
@@ -70,6 +71,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 | Wolf kills per night | Moderator picks 1 up to the number of wolves (in the lobby). Set it to the number of wolves for **one kill per wolf**. It never goes above the number of *living* wolves, so the pack loses a kill when a wolf is voted out |
 | Wolves pick different victims | With 1 kill per night, the app picks one of their choices at random 🎲. With more, each different pick is attacked, up to the limit. Wolves who pick the same person only kill once |
 | Doctor | Can protect themselves, but not the same person 2 nights in a row |
+| Wolf pack chat | The werewolves get a private group chat on their phones, open while roles are shown and during the night, so they can agree who to visit. Only living wolves can write; the moderator can read along. It closes at sunrise, starts empty after every deal or reshuffle, and makes no sound (phones just buzz) so nobody gets caught on the call |
 | Seer | One peek per night, learns "werewolf" or "not a werewolf" |
 | Jester (optional) | On nobody's team. **Wins alone if the village votes them out**, which ends the game at once and everyone else loses. Killed by the wolves at night, they just lose. At night they tap a suspect like a villager, and the Seer sees them as "not a werewolf". Everyone can see in the lobby that a Jester is in the game |
 | Villagers at night | Tap a "suspect", so nobody can tell who has powers |

@@ -628,3 +628,26 @@ details.card summary .muted { font-weight: 700; }
   .bitten .av { animation: none; }
 }
 .stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
+
+/* ───────── wolf pack chat ───────── */
+.wolfchat { display: grid; gap: 12px; margin-top: 6px; text-align: left; position: relative; z-index: 1; }
+.card.glass.wolfchat { background: rgba(33, 26, 82, .94); }
+.wc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.wc-head h3 svg { color: #FFB3C4; }
+.wc-head .small { display: inline-flex; align-items: center; gap: 5px; color: #C9C0EA; font-weight: 700; }
+.wc-head .small svg { width: 13px; height: 13px; }
+.chatlog { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.msg { justify-self: start; max-width: 82%; padding: 8px 12px; border-radius: 16px 16px 16px 6px; background: rgba(255,255,255,.12);
+  line-height: 1.4; overflow-wrap: anywhere; }
+.msg b { display: block; font-size: 12px; font-weight: 800; color: #FFB3C4; margin-bottom: 1px; }
+.msg.mine { justify-self: end; border-radius: 16px 16px 6px 16px; background: #6A5DC4; color: #fff; }
+.chat-empty { text-align: center; padding: 6px 0; }
+.wc-send { display: flex; gap: 8px; align-items: center; }
+.wc-send .input { flex: 1; min-width: 0; font-size: 16px; padding: 10px 14px; border-radius: 999px; }
+.theme-night .wolfchat .input { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.16); color: #fff; }
+.theme-night .wolfchat .input::placeholder { color: #B9B0DA; }
+.theme-night .wolfchat .input:focus { border-color: #B9AEF5; background: rgba(255,255,255,.14); box-shadow: 0 0 0 4px rgba(185,174,245,.18); }
+.wc-send .btn.small { width: 44px; padding: 0; flex: none; }
+/* the moderator's read-only copy sits on a light card */
+.modgrid .chatlog .msg { background: #F1EEFA; color: var(--ink); }
+.modgrid .chatlog .msg b { color: var(--purple-d); }

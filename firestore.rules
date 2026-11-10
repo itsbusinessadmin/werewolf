@@ -16,6 +16,8 @@ service cloud.firestore {
     function isMod(code) { return signedIn() && room(code).moderatorUid == request.auth.uid; }
     function secretPin() { return get(/databases/$(database)/documents/app/secret).data.pin; }
     function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function mySecret(code) { return /databases/$(database)/documents/rooms/$(code)/secrets/$(request.auth.uid); }
+    function isWolf(code) { return signedIn() && exists(mySecret(code)) && get(mySecret(code)).data.role == 'werewolf'; }
 
     // App name & icon: everyone can read, only admins can change.
     match /app/branding {
@@ -77,6 +79,23 @@ service cloud.firestore {
               && aid.matches('.*_' + request.auth.uid)
               && room(code).phase == 'night');
         allow delete: if isMod(code);
+      }
+
+      // Wolf pack chat: only the werewolves of the CURRENT deal (and the moderator) can read it.
+      // Living wolves can post while roles are shown and at night. A reshuffle or a new game
+      // changes dealtAt, so old messages are never shown to whoever the new wolves are.
+      match /wolfchat/{mid} {
+        allow read: if isMod(code) || (isWolf(code) && resource.data.deal == room(code).dealtAt);
+        allow create: if isWolf(code)
+          && request.resource.data.keys().hasOnly(['uid', 'text', 't', 'deal'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 200
+          && request.resource.data.t is number
+          && request.resource.data.deal == room(code).dealtAt
+          && room(code).phase in ['roles', 'night']
+          && get(/databases/$(database)/documents/rooms/$(code)/players/$(request.auth.uid)).data.alive == true;
+        allow update, delete: if isMod(code);
       }
 
       // Day votes are public (everyone sees the live count).
