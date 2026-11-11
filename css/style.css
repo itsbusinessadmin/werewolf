@@ -712,3 +712,9 @@ details.card summary .muted { font-weight: 700; }
 .theme-night .find .input::placeholder { color: #B9B0DA; }
 .avmore { margin: 10px auto 0; display: flex; }
 .avmore[hidden] { display: none; }
+
+/* ───────── survivor's glimpse ───────── */
+.clue.glimpse { background: linear-gradient(135deg, #E4F6FF, #CFE8FF); align-items: flex-start; }
+.clue-eye { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: #2E2545; color: #FFE58A; font-size: 22px; box-shadow: 0 0 0 3px #fff; }
+.clue-note { margin-top: 4px; font-size: 13px; color: var(--ink-soft); }

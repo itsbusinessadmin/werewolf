@@ -80,6 +80,7 @@ While `js/config.js` is empty, the app runs in **demo mode**: every browser tab 
 | Votes per player | Moderator picks 1–3 (in the lobby, or before each vote). Each vote must go to a different person. |
 | Tied vote | Nobody is out |
 | 🤔 Village hunch (optional switch) | Each morning everyone sees who got the most "Who do you suspect?" taps last night (anonymous count) |
+| 👁️ Survivor's glimpse (on by default) | When the doctor saves someone the wolves attacked, that person privately sees one true detail about how one of their attackers looks, like "the wolf wears glasses" or "has dark hair". It always fits several living players (about a third of them in a 27-player game, never everyone), so it narrows the hunt without naming the wolf. Shown on their phone through the morning and the debate. The moderator sees who got it |
 | 🗝️ Rumors (optional switch) | Each morning one random living villager privately hears a true clue: "One of these 3 is a werewolf." Exactly one of the three is a wolf, and the listener is never in the list |
 | Village wins | When every werewolf is gone |
 | Wolves win | When there are as many wolves as other players (a living Jester counts as an other player) |

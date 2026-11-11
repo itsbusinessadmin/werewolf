@@ -206,6 +206,36 @@ export function villageHunch(actions, players) {
 }
 
 /**
+ * Survivor's glimpse: someone the doctor saved from the wolves privately learns one TRUE
+ * detail about how one of their attackers looks ("the wolf wears glasses").
+ * It is kept vague on purpose: the detail must also fit other living players, aiming for
+ * roughly a third of the people the survivor could suspect, and never everyone.
+ * traitsOf(playerId) -> detail keys (from art.js avatarTraits).
+ * -> { to, wolf, trait, matches, of } or null
+ */
+export function makeGlimpse({ savedId, actions, players, roles, traitsOf, rnd = Math.random }) {
+  const attackers = [...new Set(actions
+    .filter(a => a.type === 'kill' && a.target === savedId && roles[a.uid] === 'werewolf' && isAlive(players, a.uid))
+    .map(a => a.uid))];
+  if (!attackers.length || !isAlive(players, savedId)) return null;
+  const wolf = attackers[Math.floor(rnd() * attackers.length)];
+  const field = players.filter(p => p.alive && p.id !== savedId);          // everyone the survivor could suspect
+  const traitCache = new Map(field.map(p => [p.id, traitsOf(p.id)]));
+  const options = traitCache.get(wolf).map(trait => ({ trait, matches: field.filter(p => traitCache.get(p.id).includes(trait)).length }));
+  // a detail everybody shares tells you nothing; one only the wolf has gives the game away
+  const enough = Math.min(3, field.length - 1);
+  let pool = options.filter(o => o.matches < field.length && o.matches >= enough);
+  if (!pool.length) pool = options.filter(o => o.matches < field.length);
+  if (!pool.length) pool = options;
+  const aim = Math.max(enough, Math.round(field.length / 3));
+  const dist = (o) => Math.abs(o.matches - aim);
+  const best = Math.min(...pool.map(dist));
+  const close = pool.filter(o => dist(o) <= best + Math.max(1, Math.round(field.length * 0.05)));
+  const pick = close[Math.floor(rnd() * close.length)];
+  return { to: savedId, wolf, trait: pick.trait, matches: pick.matches, of: field.length };
+}
+
+/**
  * 🗝️ Rumor (optional): one random living villager hears a small, TRUE clue:
  * "One of these 3 people is a werewolf." Exactly one of them is a wolf,
  * and the person hearing it is never in the list.
