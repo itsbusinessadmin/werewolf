@@ -288,6 +288,46 @@ export const avatarData = (i) => {
   return n < AVATARS.length ? AVATARS[n] : generatedVillager(n);
 };
 export const avatarName = (i) => avatarData(i).name;
+
+// ── What someone can notice about a villager in the dark (for the Survivor's glimpse) ──
+// Broad, everyday details only: a clue should fit several people, not point at one.
+const HAIR_TONE = {
+  '#3B2A22': 'dark', '#2E2438': 'dark', '#241A1A': 'dark', '#2F2A3A': 'dark', '#1F1A2B': 'dark', '#3A2A20': 'dark', '#20181A': 'dark', '#4A2F25': 'dark',
+  '#8A5A3B': 'brown', '#5A3A2E': 'brown', '#6B3F2A': 'brown', '#8A4B2E': 'brown', '#7A3B2E': 'brown',
+  '#E3B04B': 'fair', '#F2C94C': 'fair',
+  '#C9773E': 'red', '#E8743B': 'red', '#B5482F': 'red',
+  '#D9D4E4': 'grey',
+};
+const SHIRT_TONE = {
+  '#FF9EB5': 'red', '#F49AC1': 'red', '#E5566E': 'red',
+  '#7CC47F': 'green', '#9CDB9A': 'green', '#4FB6B0': 'green',
+  '#8FB8FF': 'blue', '#5B6FD8': 'blue', '#6FB6E8': 'blue', '#5B8DEF': 'blue',
+  '#B9A3F0': 'purple', '#A88BEB': 'purple',
+  '#FFCE5C': 'yellow', '#F2C35B': 'yellow', '#FFB86B': 'yellow', '#E98B4E': 'yellow',
+  '#F7F2E8': 'white',
+};
+export const TRAIT_TEXT = {
+  hat: 'was wearing a hat', nohat: "wasn't wearing a hat",
+  glasses: 'wears glasses', noglasses: "doesn't wear glasses",
+  earrings: 'wears earrings', freckles: 'has freckles', beard: 'has a beard or a moustache',
+  longhair: 'has long hair', shorthair: 'has short hair',
+  'hair-dark': 'has dark hair', 'hair-brown': 'has brown hair', 'hair-fair': 'has fair hair', 'hair-red': 'has red or ginger hair', 'hair-grey': 'has grey hair',
+  'top-red': 'was wearing pink or red', 'top-green': 'was wearing green', 'top-blue': 'was wearing blue',
+  'top-purple': 'was wearing purple', 'top-yellow': 'was wearing yellow or orange', 'top-white': 'was wearing white',
+};
+export function avatarTraits(i) {
+  const a = avatarData(i);
+  const ex = a.extras || [];
+  const t = [a.hat ? 'hat' : 'nohat', ex.includes('glasses') ? 'glasses' : 'noglasses'];
+  if (ex.includes('earrings')) t.push('earrings');
+  if (ex.includes('freckles')) t.push('freckles');
+  if (a.beard) t.push('beard');
+  if (['long', 'pigtails', 'bob'].includes(a.hair)) t.push('longhair');
+  else if (['short', 'tuft', 'spiky', 'side', 'bangs', 'curly'].includes(a.hair)) t.push('shorthair');
+  if (HAIR_TONE[a.hairColor]) t.push('hair-' + HAIR_TONE[a.hairColor]);
+  if (SHIRT_TONE[a.shirt]) t.push('top-' + SHIRT_TONE[a.shirt]);
+  return t;
+}
 export const avatarSVG = (i, opts) => faceSVG(avatarData(i), opts);
 
 // ── Role portraits (viewBox 0 0 200 200) ──────────────────────

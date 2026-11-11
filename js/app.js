@@ -1,6 +1,6 @@
 import { firebaseConfig } from './config.js';
 import { createLocalBackend } from './backend-local.js';
-import { AVATAR_COUNT, avatarName, avatarSVG, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON, biteSVG } from './art.js';
+import { AVATAR_COUNT, avatarName, avatarSVG, avatarTraits, TRAIT_TEXT, ROLE_ART, ghostSVG, werewolfSVG, villagerSVG, moonSceneSVG, ICON, biteSVG } from './art.js';
 import * as G from './game.js';
 import * as SND from './sound.js';
 
@@ -150,7 +150,7 @@ function toggle(key, title, desc, on) {
 
 function extrasNote() {
   const st = room().settings || {};
-  const on = [st.hunch && 'Village hunch', st.rumor && 'Rumors'].filter(Boolean);
+  const on = [st.hunch && 'Village hunch', st.rumor && 'Rumors', st.glimpse !== false && 'Survivor’s glimpse'].filter(Boolean);
   const plan = planned(st);
   return (plan && room().phase === 'lobby' ? `<p class="small" style="opacity:.85"><b>${S.players.length} of ${plan}</b> players have joined</p>` : '')
     + `<p class="small" style="opacity:.85">This game: <b>${roleSummary(roleCounts(st), plan ?? S.players.length)}</b></p>`
@@ -165,6 +165,19 @@ function hunchCard() {
   return `<div class="clue hunch">
     <div class="clue-avs">${h.ids.slice(0, 3).map((id) => av(pl(id)?.avatar, 44, { dead: !pl(id)?.alive })).join('')}</div>
     <div><small>${ICON.hunch} Village hunch</small><p>Last night the village suspected ${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0]} the most <span class="muted">(${h.count} of ${h.total} taps)</span>.</p></div>
+  </div>`;
+}
+
+// Survivor's glimpse: shown to the saved player through the morning and the debate
+function glimpseCard() {
+  const r = room();
+  const trait = S.secret?.glimpse?.[r.round];
+  if (r.settings?.glimpse === false || !trait || !TRAIT_TEXT[trait] || !me()?.alive || !['morning', 'day'].includes(r.phase)) return '';
+  return `<div class="clue glimpse">
+    <div class="clue-eye" aria-hidden="true">${ICON.eye}</div>
+    <div><small>Only you saw this</small>
+      <p>The wolves came for you last night, but the doctor saved you. In the dark you noticed one thing: <b>the wolf ${esc(TRAIT_TEXT[trait])}</b>.</p>
+      <p class="clue-note">Lots of villagers fit this. Use it carefully!</p></div>
   </div>`;
 }
 
@@ -483,7 +496,7 @@ function pMorning() {
       <div class="big-art anim">${villagerSVG()}</div>
       <h2>A quiet night</h2>
       <p class="muted" style="margin-top:8px">Everyone woke up safe and sound. Maybe the doctor saved someone…</p>
-    </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
+    </div>${glimpseCard()}${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
   const isMe = vs.includes(S.uid);
   const names = vs.map((id) => (id === S.uid ? 'you' : esc(pl(id)?.name)));
   const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
@@ -496,7 +509,7 @@ function pMorning() {
       <p class="muted" style="margin-top:6px">The village found ${vs.length > 1 ? 'them' : isMe ? 'you' : 'them'} at sunrise.</p>
       <div class="stamps">${vs.map((id) => { const role = pl(id)?.role; return role ? `<div class="stamp" style="--rc:${RC(role)}">${vs.length > 1 ? `${esc(pl(id)?.name)}: ` : 'They were a '}${G.ROLES[role].name}</div>` : ''; }).join('')}</div>
       ${isMe ? `<p style="margin-top:14px"><b>You're a ghost now.</b> Watch quietly, no hints.</p>` : ''}
-    </div>${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
+    </div>${glimpseCard()}${rumorCard()}${hunchCard()}${waiting('Waiting for the debate')}`;
 }
 
 function graveyard() {
@@ -512,7 +525,7 @@ function pDay() {
     <h2>Talk it out</h2>
     <p class="muted">Unmute on Teams and talk it out. Who was acting fishy? Who's defending who?</p>
   </div>
-  ${rumorCard()}${hunchCard()}
+  ${glimpseCard()}${rumorCard()}${hunchCard()}
   <h3 class="section-title">Still standing <span>${alive().length}</span></h3>
   ${tiles(alive())}
   ${graveyard()}`;
@@ -864,6 +877,7 @@ function modControl() {
         ${timersField()}
         <div class="field"><label>Extra clues for the village</label>
           ${toggle('hunch', 'Village hunch', 'Each morning, everyone sees who got the most “Who do you suspect?” taps last night. The count is anonymous.', r.settings?.hunch)}
+          ${toggle('glimpse', 'Survivor’s glimpse', 'When the doctor saves someone from the wolves, that person privately learns one thing about how their attacker looks, like “the wolf wears glasses”. It always fits several people, so it narrows things down without giving the wolf away.', r.settings?.glimpse !== false)}
           ${toggle('rumor', 'Rumors', 'Each morning, one random villager secretly hears a true clue: “One of these 3 people is a werewolf.” Makes the game easier for the village.', r.settings?.rumor)}
         </div>
         ${problem ? `<p class="banner">${problem}</p>` : ''}
@@ -894,6 +908,7 @@ function modControl() {
             : script('“Good news! Nobody died last night. Someone must have been protected…”')}
         ${r.morning?.hunch ? script(`“The village’s hunch… most of you suspected <b>${r.morning.hunch.ids.map(pname).join(' and ')}</b> last night. Hmm…”`) : ''}
         ${r.morning?.rumor ? `<p class="banner">Rumor sent privately to <b>${pname(r.morning.rumor)}</b>. Don't say who!</p>` : ''}
+        ${(S.mod?.glimpse?.[r.round] || []).length ? `<p class="banner">${ICON.eye} Survivor’s glimpse sent privately to <b>${S.mod.glimpse[r.round].map(pname).join(' & ')}</b>. Don't say who!</p>` : ''}
         ${ctl(`<button class="btn sun" data-act="day">${ICON.sun} Start the debate</button>`)}`;
     }
     case 'day':
@@ -1358,7 +1373,7 @@ async function createRoom() {
   for (let i = 0; i < 6; i++) { code = G.makeCode(); if (!(await S.be.get(`rooms/${code}`))) break; }
   await S.be.set(`rooms/${code}`, {
     moderatorUid: S.uid, phase: 'lobby', game: 1, round: 0, createdAt: Date.now(),
-    settings: { wolves: 2, doctors: 1, seers: 1, votesPerPlayer: 1, hunch: false, rumor: false, auto: true, voteEarly: true,
+    settings: { wolves: 2, doctors: 1, seers: 1, votesPerPlayer: 1, hunch: false, rumor: false, glimpse: true, auto: true, voteEarly: true,
       times: { roles: 20, night: 45, morning: 10, day: 120, vote: 45, verdict: 10 } },
   });
   await S.be.set(`rooms/${code}/secrets/_mod`, { roles: {}, log: [{ t: Date.now(), text: 'Room created. Waiting for villagers…' }] });
@@ -1465,6 +1480,15 @@ async function resolveNightNow() {
       ops.push({ type: 'update', path: P(`/secrets/${rumor.to}`), data: { [`rumor.${r.round}`]: rumor.ids } });
       text += ` Rumor to <b>${pname(rumor.to)}</b>: one of ${rumor.ids.map(pname).join(', ')}.`;
     }
+    // Survivor's glimpse: only in their private secret, never in the shared room (that would
+    // tell everyone who was attacked and saved)
+    const glimpses = st.glimpse !== false && !winner ? res.savedIds.map((id) => G.makeGlimpse({
+      savedId: id, actions: nowActions(), players: after, roles, traitsOf: (pid) => avatarTraits(pl(pid)?.avatar ?? 0),
+    })).filter(Boolean) : [];
+    for (const g of glimpses) {
+      ops.push({ type: 'update', path: P(`/secrets/${g.to}`), data: { [`glimpse.${r.round}`]: g.trait } });
+      text += ` Glimpse to <b>${pname(g.to)}</b>: the wolf ${TRAIT_TEXT[g.trait]} (true of ${g.matches} of ${g.of}).`;
+    }
     for (const id of res.victims) ops.push({ type: 'update', path: P(`/players/${id}`), data: { alive: false, role: roles[id] } });
     const newLast = {};
     for (const id of doctorIds) {
@@ -1473,7 +1497,7 @@ async function resolveNightNow() {
     }
     if (winner) ops.push(...revealAllOps(roles, Object.fromEntries(res.victims.map((id) => [id, { alive: false }]))));
     S.mod.lastProtected = newLast;
-    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, log: logAdd(text + (winner ? ` ${WIN_LOG[winner]}` : '')) } });
+    ops.push({ type: 'update', path: P('/secrets/_mod'), data: { lastProtected: newLast, [`glimpse.${r.round}`]: glimpses.map((g) => g.to), log: logAdd(text + (winner ? ` ${WIN_LOG[winner]}` : '')) } });
     ops.push({ type: 'update', path: P(), data: { phase: winner ? 'ended' : 'morning', morning: { victim: res.victim, victims: res.victims, round: r.round, hunch: hunch || null, rumor: rumor?.to || null }, winner: winner || null, nightEndsAt: null, phaseEndsAt: winner ? null : endsFor('morning'), pausedLeft: null } });
     await S.be.batch(ops);
   } catch (e) {
@@ -1707,7 +1731,7 @@ const ACT = {
   nightSecs: (d) => guarded(() => S.be.update(P(), { 'settings.times.night': +d.s })),
   toggleSetting: (d) => {
     if (d.k === 'plan') return ACT.togglePlan();
-    const onByDefault = ['auto', 'voteEarly'].includes(d.k);
+    const onByDefault = ['auto', 'voteEarly', 'glimpse'].includes(d.k);
     const cur = onByDefault ? room().settings?.[d.k] !== false : !!room().settings?.[d.k];
     const ops = { [`settings.${d.k}`]: !cur };
     // switching to automatic mid-game: give the current phase a fresh timer
