@@ -269,9 +269,9 @@ function viewHome() {
     <summary>How to play <span class="muted">· 30 seconds</span></summary>
     <div class="stack small" style="margin-top:12px">
       <p><b>Two secret teams.</b> A few players are werewolves. Everyone else is the village.</p>
-      <p><b>Night.</b> the wolves pick someone to gobble, the doctor protects someone, and the seer peeks at someone's role. Everyone taps their phone, so nobody can tell who's who.</p>
-      <p><b>Day.</b> talk on Teams! Accuse, defend, bluff. Then everyone votes on their phone to kick someone out.</p>
-      <p><b>Winning.</b> the village wins when all wolves are gone. The wolves win when there are as many wolves as villagers.</p>
+      <p><b>Night.</b> The wolves pick someone to gobble, the doctor protects someone, and the seer peeks at someone's role. Everyone taps their phone, so nobody can tell who's who.</p>
+      <p><b>Day.</b> Talk on Teams! Accuse, defend, bluff. Then everyone votes on their phone to kick someone out.</p>
+      <p><b>Winning.</b> The village wins when all wolves are gone. The wolves win when there are as many wolves as villagers.</p>
     </div>
   </details>
   ${S.be?.mode === 'demo' ? `<p class="banner"><b>Demo mode.</b> Every browser tab is a separate player. Add your Firebase settings in <b>js/config.js</b> to play online with friends.</p>` : ''}
@@ -421,7 +421,7 @@ function pRoles() {
   const role = S.secret?.role;
   if (!role) return `<div class="card center"><p>Shuffling the role cards…</p></div>`;
   return `
-  <div class="flip ${S.ui.flipped ? 'open' : ''}" data-act="flip">
+  <div class="flip ${S.ui.flipped ? 'open' : ''}" data-act="flip" role="button" tabindex="0" aria-label="${S.ui.flipped ? 'Hide your role card' : 'Reveal your secret role'}">
     <div class="flip-inner">
       <div class="face front"><div><div class="moonbig"></div><h2>Your secret role</h2><p style="opacity:.8;margin-top:8px">Keep your screen to yourself.</p><span class="tap-hint">Tap to reveal</span></div></div>
       <div class="face back">${roleBack(role)}</div>
@@ -668,7 +668,7 @@ function viewMod() {
   return `
   <div class="topbar">
     <button class="iconbtn" data-act="leave" aria-label="Admin home" title="Admin home">${ICON.back}</button>
-    <span class="chip" style="background:var(--purple);color:#fff">${ICON.crown} Moderator</span>
+    <span class="chip modchip" style="background:var(--purple);color:#fff" title="Moderator">${ICON.crown}<span>Moderator</span></span>
     <span class="chip">${r.round ? `Round ${r.round}` : 'Setting up'}</span>
     <span class="spacer"></span>
     ${soundBtn()}
@@ -1396,7 +1396,7 @@ async function dealRoles() {
   }
   const names = (role) => ps.filter((p) => roles[p.id] === role).map((p) => esc(p.name)).join(', ');
   ops.push({ type: 'set', path: P('/secrets/_mod'), data: { roles, lastProtected: {}, seer: {}, log: [
-    { t: Date.now(), text: `Roles dealt at random. Wolves: <b>${names('werewolf')}</b> · Doctor: <b>${names('doctor') || 'none'}</b> · Seer: <b>${names('seer') || 'none'}</b>` }] } });
+    { t: Date.now(), text: `Roles dealt at random. Wolves: <b>${names('werewolf')}</b> · Doctor: <b>${names('doctor') || 'none'}</b> · Seer: <b>${names('seer') || 'none'}</b>${names('jester') ? ` · Jester: <b>${names('jester')}</b>` : ''}` }] } });
   ops.push({ type: 'update', path: P(), data: { phase: 'roles', round: 0, morning: null, verdict: null, winner: null, dealtAt: Date.now(), phaseEndsAt: endsFor('roles'), pausedLeft: null, autoStartAt: null } });
   await S.be.batch(ops);
 }
@@ -1526,7 +1526,7 @@ async function closeVote() {
   const after = S.players.map((p) => (p.id === t.out ? { ...p, alive: false } : p));
   const winner = G.jesterVotedOut(t.out, roles) ? 'jester' : G.checkWinner(after, roles);
   const tally = Object.entries(t.counts).map(([id, c]) => `${pname(id)} ${c}`).join(', ') || 'no votes';
-  const text = `Day ${r.round} vote (${tally}): ${t.out ? `<b>${pname(t.out)}</b> voted out. They were a ${G.ROLES[roles[t.out]].name}.` : t.tie ? 'tie, nobody out.' : 'nobody voted.'}`;
+  const text = `Day ${r.round} vote (${tally}): ${t.out ? `<b>${pname(t.out)}</b> voted out. They were a ${G.ROLES[roles[t.out]]?.name || 'villager'}.` : t.tie ? 'tie, nobody out.' : 'nobody voted.'}`;
   const ops = [];
   if (t.out) ops.push({ type: 'update', path: P(`/players/${t.out}`), data: { alive: false, role: roles[t.out] } });
   if (winner) ops.push(...revealAllOps(roles, t.out ? { [t.out]: { alive: false } } : {}));
@@ -1546,7 +1546,8 @@ async function playAgain() {
 const BOT_NAMES = ['Bonnie', 'Barnaby', 'Clover', 'Dash', 'Echo', 'Fizz', 'Gus', 'Hazel', 'Iggy', 'Juniper', 'Kip', 'Luna'];
 async function addBot() {
   const usedNames = new Set(S.players.map((p) => p.name));
-  const name = 'Bot ' + (BOT_NAMES.find((n) => !usedNames.has('Bot ' + n)) || Math.floor(Math.random() * 99));
+  let name = 'Bot ' + BOT_NAMES.find((n) => !usedNames.has('Bot ' + n));
+  for (let n = 2; usedNames.has(name) || name === 'Bot undefined'; n++) name = `Bot ${BOT_NAMES[(n - 2) % BOT_NAMES.length]} ${Math.floor((n - 2) / BOT_NAMES.length) + 2}`;
   const taken = new Set(S.players.map((p) => p.avatar));
   const free = freeAvatars(taken);
   const avatar = free.length ? free[Math.floor(Math.random() * Math.min(free.length, AV_PAGE))] : Math.floor(Math.random() * AVATAR_COUNT);
@@ -1564,9 +1565,16 @@ async function joinGame() {
   if (!r) return toast("Can't find that room. Check the code.");
   if (r.moderatorUid === S.uid) return toast('This device is the moderator of that game. Use another phone to play.');
   const existing = await S.be.get(`rooms/${code}/players/${S.uid}`);
+  if (r.closed) return toast('That game was closed. Ask for the new room code.');
   if (existing) return enterRoom(code, false);
   if (r.phase !== 'lobby') return toast('That game already started. Wait for the next one.');
-  await S.be.set(`rooms/${code}/players/${S.uid}`, { name, avatar: S.ui.avatar ?? 0, alive: true, joinedAt: Date.now() });
+  const here = S.ui.code === code ? S.joinPlayers : [];
+  if (here.length >= MAX_PLAYERS) return toast(`That game is full (${MAX_PLAYERS} players).`);
+  if (here.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())) return toast('Someone here already uses that name. Add an initial!');
+  let avatar = S.ui.avatar ?? 0;
+  const taken = new Set(here.map((p) => p.avatar));
+  if (taken.has(avatar)) avatar = freeAvatars(taken)[0] ?? avatar;       // someone took it a moment ago
+  await S.be.set(`rooms/${code}/players/${S.uid}`, { name, avatar, alive: true, joinedAt: Date.now() });
   SND.play('join');
   enterRoom(code, false);
 }
@@ -1722,13 +1730,6 @@ const ACT = {
     await dealRoles();
     toast('Roles reshuffled. Players will see a new card.');
   }),
-  wolves: (d) => {
-    const n = S.players.length;
-    const w = Math.min(4, Math.max(1, (room().settings?.wolves ?? 2) + +d.d));
-    if (w > G.maxWolves(n) && +d.d > 0 && n >= G.MIN_PLAYERS) toast(`Max ${G.maxWolves(n)} werewolves for ${n} players`);
-    guarded(() => S.be.update(P(), { 'settings.wolves': w }));
-  },
-  nightSecs: (d) => guarded(() => S.be.update(P(), { 'settings.times.night': +d.s })),
   toggleSetting: (d) => {
     if (d.k === 'plan') return ACT.togglePlan();
     const onByDefault = ['auto', 'voteEarly', 'glimpse'].includes(d.k);
@@ -1795,6 +1796,8 @@ document.addEventListener('change', async (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.ui.confirm) { closeConfirm(false); return; }
+  if (e.key === 'Escape' && S.ui.sheet) { ACT.closeSheet(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.flip')) { e.preventDefault(); ACT.flip(); return; }
   if (e.key === 'Enter' && e.target.matches('input')) {
     if (e.target.dataset.bind === 'chat') { e.preventDefault(); ACT.sendChat(); return; }
     if (S.view === 'join') ACT.join();

@@ -34,14 +34,17 @@ export async function createFirebaseBackend(config) {
     update: (path, patch) => fs.updateDoc(ref(path), mapDeletes(patch)),
     del: (path) => fs.deleteDoc(ref(path)),
     async batch(ops) {
-      // Firestore batches max 500 writes — plenty for a werewolf game
-      const b = fs.writeBatch(db);
-      for (const op of ops) {
-        if (op.type === 'set') b.set(ref(op.path), op.data, op.merge ? { merge: true } : {});
-        else if (op.type === 'update') b.update(ref(op.path), mapDeletes(op.data));
-        else if (op.type === 'delete') b.delete(ref(op.path));
+      // Firestore batches hold at most 500 writes. Bigger ones (dealing to 200+ players) are
+      // sent in order as several batches, so the final write (the phase change) still lands last.
+      for (let i = 0; i < ops.length; i += 450) {
+        const b = fs.writeBatch(db);
+        for (const op of ops.slice(i, i + 450)) {
+          if (op.type === 'set') b.set(ref(op.path), op.data, op.merge ? { merge: true } : {});
+          else if (op.type === 'update') b.update(ref(op.path), mapDeletes(op.data));
+          else if (op.type === 'delete') b.delete(ref(op.path));
+        }
+        await b.commit();
       }
-      await b.commit();
     },
     watch(path, cb) {
       return fs.onSnapshot(ref(path), (s) => cb(s.exists() ? s.data() : null), (e) => console.warn('watch', path, e.message));
