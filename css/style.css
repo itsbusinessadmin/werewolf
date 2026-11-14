@@ -764,3 +764,6 @@ details.card summary .muted { font-weight: 700; }
   .face.back > .stack { grid-template-columns: auto 1fr; align-items: center; column-gap: 20px; text-align: left; }
   .face.back > .stack > .art { grid-row: 1 / span 5; }
 }
+
+/* ───────── the wolf's eyes follow the pointer (moved by app.js) ───────── */
+.wolf .ch-pupil { transition: transform 140ms var(--ease-out); }

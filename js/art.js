@@ -369,8 +369,9 @@ export function werewolfSVG() {
     <path d="M62 82 q12 -7 22 2 M138 82 q-12 -7 -22 2" ${line(3.4)}/>
     <ellipse cx="76" cy="100" rx="11" ry="12.5" fill="#FFD84D" stroke="${OUT}" stroke-width="2.6"/>
     <ellipse cx="124" cy="100" rx="11" ry="12.5" fill="#FFD84D" stroke="${OUT}" stroke-width="2.6"/>
-    <ellipse cx="77" cy="102" rx="5.5" ry="7.5" fill="${OUT}"/><ellipse cx="123" cy="102" rx="5.5" ry="7.5" fill="${OUT}"/>
-    <circle cx="74" cy="97" r="2.6" fill="#fff"/><circle cx="120" cy="97" r="2.6" fill="#fff"/>
+    <!-- pupils: each in its own group so they can follow the pointer (see app.js "wolf eyes") -->
+    <g class="ch-pupil" data-cx="76" data-cy="100"><ellipse cx="77" cy="102" rx="5.5" ry="7.5" fill="${OUT}"/><circle cx="74" cy="97" r="2.6" fill="#fff"/></g>
+    <g class="ch-pupil" data-cx="124" data-cy="100"><ellipse cx="123" cy="102" rx="5.5" ry="7.5" fill="${OUT}"/><circle cx="120" cy="97" r="2.6" fill="#fff"/></g>
     <!-- furry eyelids: hidden until a blink -->
     <g class="ch-lid" opacity="0"><ellipse cx="76" cy="100" rx="12.4" ry="14" fill="${fur}" stroke="${OUT}" stroke-width="2.6"/></g>
     <g class="ch-lid" opacity="0"><ellipse cx="124" cy="100" rx="12.4" ry="14" fill="${fur}" stroke="${OUT}" stroke-width="2.6"/></g>

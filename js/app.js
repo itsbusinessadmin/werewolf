@@ -248,6 +248,7 @@ function draw() {
   morph($app, next);
   if (S.view === 'join') drawAvGrid();
   if (S.view === 'adminHome') drawBrandPreview();
+  if (EYES.x || EYES.y) aimEyes();                 // a redraw resets the pupils: point them again
   rememberKeys();
   tick();
 }
@@ -1805,6 +1806,34 @@ document.addEventListener('keydown', (e) => {
     if (S.view === 'adminSetup') ACT.adminSetup();
   }
 });
+
+// ═════════════════════════ wolf eyes ═════════════════════════
+// The big wolf watches the pointer: the mouse on a computer, your finger on a phone.
+// Each pupil slides a few units inside its eye toward the pointer. After a touch ends the
+// eyes drift back to the middle; with a mouse they keep watching.
+const EYES = { x: 0, y: 0, raf: 0, rest: 0 };
+const eyesOff = matchMedia('(prefers-reduced-motion: reduce)');
+function aimEyes() {
+  EYES.raf = 0;
+  for (const g of document.querySelectorAll('.wolf .ch-pupil')) {
+    const box = g.ownerSVGElement.getBoundingClientRect();
+    if (!box.width) continue;
+    const k = box.width / 200;                                   // the portrait's viewBox is 200 wide
+    const dx = EYES.x - (box.left + +g.dataset.cx * k), dy = EYES.y - (box.top + +g.dataset.cy * k);
+    const d = Math.hypot(dx, dy) || 1;
+    const pull = EYES.centre ? 0 : Math.min(1, d / (box.width * 0.6));   // nearer than that: a smaller glance
+    g.style.transform = `translate(${((dx / d) * 4.2 * pull).toFixed(2)}px, ${((dy / d) * 3.4 * pull).toFixed(2)}px)`;
+  }
+}
+function lookAt(e) {
+  if (eyesOff.matches) return;
+  EYES.x = e.clientX; EYES.y = e.clientY; EYES.centre = false;
+  if (!EYES.raf) EYES.raf = requestAnimationFrame(aimEyes);
+  clearTimeout(EYES.rest);
+  if (e.pointerType !== 'mouse') EYES.rest = setTimeout(() => { EYES.centre = true; aimEyes(); }, 1600);
+}
+document.addEventListener('pointermove', lookAt, { passive: true });
+document.addEventListener('pointerdown', lookAt, { passive: true });
 
 // ═════════════════════════ boot ═════════════════════════
 async function boot() {
